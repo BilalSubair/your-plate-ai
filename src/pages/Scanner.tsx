@@ -149,26 +149,32 @@ const Scanner = () => {
 
         {/* Idle State */}
         {scanState === "idle" && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="text-center py-8">
-              <div className="w-20 h-20 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-4 shadow-glow">
+          <div className="space-y-6">
+            <div className="text-center py-8 animate-fade-in">
+              <div className="w-20 h-20 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-4 shadow-glow animate-pulse-ring">
                 <ScanLine className="w-10 h-10 text-primary-foreground" />
               </div>
-              <h1 className="text-2xl font-bold text-foreground">Label Scanner</h1>
-              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+              <h1 className="text-2xl font-bold text-foreground animate-slide-up">Label Scanner</h1>
+              <p className="text-muted-foreground mt-2 max-w-md mx-auto animate-slide-up stagger-1" style={{ animationFillMode: 'both' }}>
                 Scan product barcodes to analyze nutritional content and detect harmful ingredients
               </p>
             </div>
 
             <div className="grid gap-4 max-w-md mx-auto">
-              <Button size="lg" className="w-full" onClick={startScanner}>
-                <Camera className="w-5 h-5 mr-2" />
+              <Button 
+                size="lg" 
+                className="w-full animate-slide-up stagger-2 hover-glow group" 
+                style={{ animationFillMode: 'both' }}
+                onClick={startScanner}
+              >
+                <Camera className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
                 Scan Barcode with Camera
               </Button>
               <Button
                 size="lg"
                 variant="outline"
-                className="w-full"
+                className="w-full animate-slide-up stagger-3 hover-lift"
+                style={{ animationFillMode: 'both' }}
                 onClick={() => setScanState("manual")}
               >
                 <Keyboard className="w-5 h-5 mr-2" />
@@ -177,7 +183,7 @@ const Scanner = () => {
             </div>
 
             {/* Demo Products */}
-            <Card variant="elevated" className="max-w-md mx-auto">
+            <Card variant="elevated" className="max-w-md mx-auto animate-slide-up stagger-4" style={{ animationFillMode: 'both' }}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Try Demo Products</CardTitle>
               </CardHeader>
@@ -186,17 +192,21 @@ const Scanner = () => {
                   Don't have a product? Try these sample barcodes:
                 </p>
                 {[
-                  { code: "3017620422003", name: "Nutella" },
-                  { code: "5449000000996", name: "Coca-Cola" },
-                  { code: "7622210449283", name: "Oreo Cookies" },
-                ].map((demo) => (
+                  { code: "3017620422003", name: "Nutella", icon: "🍫" },
+                  { code: "5449000000996", name: "Coca-Cola", icon: "🥤" },
+                  { code: "7622210449283", name: "Oreo Cookies", icon: "🍪" },
+                ].map((demo, index) => (
                   <button
                     key={demo.code}
                     onClick={() => lookupProduct(demo.code)}
-                    className="w-full flex items-center justify-between p-3 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors text-left"
+                    className="w-full flex items-center justify-between p-3 rounded-lg bg-secondary hover:bg-secondary/80 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-left group"
+                    style={{ animationDelay: `${0.5 + index * 0.1}s` }}
                   >
-                    <span className="font-medium text-foreground">{demo.name}</span>
-                    <span className="text-sm text-muted-foreground">{demo.code}</span>
+                    <span className="font-medium text-foreground flex items-center gap-2">
+                      <span className="text-lg group-hover:scale-125 transition-transform">{demo.icon}</span>
+                      {demo.name}
+                    </span>
+                    <span className="text-sm text-muted-foreground group-hover:text-primary transition-colors">{demo.code}</span>
                   </button>
                 ))}
               </CardContent>
@@ -254,26 +264,38 @@ const Scanner = () => {
                   className="w-full aspect-square bg-foreground/5"
                 />
                 <div className="absolute inset-0 pointer-events-none">
+                  {/* Darkened overlay outside scan area */}
+                  <div className="absolute inset-0 bg-foreground/40" />
+                  
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-64 h-40 border-2 border-primary rounded-lg relative">
-                      <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary -translate-x-0.5 -translate-y-0.5" />
-                      <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary translate-x-0.5 -translate-y-0.5" />
-                      <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary -translate-x-0.5 translate-y-0.5" />
-                      <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary translate-x-0.5 translate-y-0.5" />
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full h-0.5 bg-primary/50 animate-pulse" />
-                      </div>
+                    {/* Clear scan window */}
+                    <div className="w-64 h-40 relative">
+                      {/* Clear background for scan area */}
+                      <div className="absolute inset-0 bg-background/0 backdrop-blur-0" style={{ clipPath: 'inset(0)' }} />
+                      
+                      {/* Border with glow */}
+                      <div className="absolute inset-0 border-2 border-primary rounded-lg shadow-glow" />
+                      
+                      {/* Animated corner brackets */}
+                      <div className="absolute top-0 left-0 w-6 h-6 border-t-3 border-l-3 border-primary -translate-x-0.5 -translate-y-0.5 animate-corner-pulse" style={{ borderWidth: '3px' }} />
+                      <div className="absolute top-0 right-0 w-6 h-6 border-t-3 border-r-3 border-primary translate-x-0.5 -translate-y-0.5 animate-corner-pulse stagger-1" style={{ borderWidth: '3px', animationDelay: '0.2s' }} />
+                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-3 border-l-3 border-primary -translate-x-0.5 translate-y-0.5 animate-corner-pulse stagger-2" style={{ borderWidth: '3px', animationDelay: '0.4s' }} />
+                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-3 border-r-3 border-primary translate-x-0.5 translate-y-0.5 animate-corner-pulse stagger-3" style={{ borderWidth: '3px', animationDelay: '0.6s' }} />
+                      
+                      {/* Scanning laser line */}
+                      <div className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent animate-scan-line shadow-glow" />
                     </div>
                   </div>
                 </div>
               </div>
               <CardContent className="pt-4">
-                <p className="text-center text-muted-foreground">
-                  Position the barcode within the frame
-                </p>
+                <div className="flex items-center justify-center gap-2 text-muted-foreground mb-4">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                  <p>Scanning for barcode...</p>
+                </div>
                 <Button
                   variant="outline"
-                  className="w-full mt-4"
+                  className="w-full hover-lift"
                   onClick={() => {
                     stopScanner();
                     resetScanner();
@@ -290,25 +312,36 @@ const Scanner = () => {
         {/* Loading State */}
         {scanState === "loading" && (
           <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
-            <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-            <p className="text-muted-foreground">Looking up product...</p>
+            <div className="relative">
+              <div className="w-20 h-20 rounded-full border-4 border-muted animate-pulse" />
+              <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Package className="w-8 h-8 text-primary animate-pulse" />
+              </div>
+            </div>
+            <p className="text-muted-foreground mt-6 animate-pulse">Looking up product...</p>
+            <div className="flex gap-1 mt-3">
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+            </div>
           </div>
         )}
 
         {/* Error State */}
         {scanState === "error" && (
-          <div className="space-y-6 animate-fade-in">
-            <Card variant="elevated" className="max-w-md mx-auto">
+          <div className="space-y-6">
+            <Card variant="elevated" className="max-w-md mx-auto animate-bounce-in">
               <CardContent className="py-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4 animate-pulse">
                   <AlertCircle className="w-8 h-8 text-destructive" />
                 </div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">Product Not Found</h3>
-                <p className="text-muted-foreground mb-6">
+                <h3 className="text-lg font-semibold text-foreground mb-2 animate-slide-up">Product Not Found</h3>
+                <p className="text-muted-foreground mb-6 animate-slide-up stagger-1" style={{ animationFillMode: 'both' }}>
                   This product isn't in our database yet. Try scanning another product or enter the barcode manually.
                 </p>
-                <Button onClick={resetScanner} className="w-full">
-                  <RefreshCw className="w-4 h-4 mr-2" />
+                <Button onClick={resetScanner} className="w-full hover-glow group animate-slide-up stagger-2" style={{ animationFillMode: 'both' }}>
+                  <RefreshCw className="w-4 h-4 mr-2 group-hover:rotate-180 transition-transform duration-500" />
                   Try Again
                 </Button>
               </CardContent>
@@ -318,13 +351,13 @@ const Scanner = () => {
 
         {/* Result State */}
         {scanState === "result" && product && (
-          <div className="space-y-6 animate-slide-up">
+          <div className="space-y-6">
             {/* Product Header */}
-            <Card variant="elevated">
+            <Card variant="elevated" className="animate-bounce-in overflow-hidden">
               <CardContent className="py-6">
                 <div className="flex items-start gap-4">
                   {/* Product Image */}
-                  <div className="w-24 h-24 rounded-xl bg-secondary flex-shrink-0 overflow-hidden">
+                  <div className="w-24 h-24 rounded-xl bg-secondary flex-shrink-0 overflow-hidden hover:scale-105 transition-transform duration-300">
                     {product.image ? (
                       <img
                         src={product.image}
@@ -340,11 +373,11 @@ const Scanner = () => {
 
                   {/* Product Info */}
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-xl font-bold text-foreground">{product.name}</h2>
+                    <h2 className="text-xl font-bold text-foreground animate-slide-up">{product.name}</h2>
                     {product.brand && (
-                      <p className="text-muted-foreground mt-0.5">{product.brand}</p>
+                      <p className="text-muted-foreground mt-0.5 animate-slide-up stagger-1" style={{ animationFillMode: 'both' }}>{product.brand}</p>
                     )}
-                    <div className="flex flex-wrap gap-2 mt-2">
+                    <div className="flex flex-wrap gap-2 mt-2 animate-scale-in stagger-2" style={{ animationFillMode: 'both' }}>
                       {product.nutriscore && (
                         <HealthBadge
                           level={
@@ -365,16 +398,18 @@ const Scanner = () => {
             </Card>
 
             {/* Health Score */}
-            <Card variant="elevated">
+            <Card variant="elevated" className="animate-slide-up stagger-1" style={{ animationFillMode: 'both' }}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-primary" />
+                  <Sparkles className="w-5 h-5 text-primary animate-pulse" />
                   Health Score
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-center py-4">
-                  <HealthScoreRing score={healthScore} size={140} strokeWidth={12} />
+                  <div className="animate-scale-in" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
+                    <HealthScoreRing score={healthScore} size={140} strokeWidth={12} />
+                  </div>
                 </div>
                 <p className="text-center text-muted-foreground mt-2">
                   Based on nutritional content and ingredient analysis
@@ -383,7 +418,7 @@ const Scanner = () => {
             </Card>
 
             {/* Nutrition Facts */}
-            <Card variant="elevated">
+            <Card variant="elevated" className="animate-slide-up stagger-2" style={{ animationFillMode: 'both' }}>
               <CardHeader>
                 <CardTitle>Nutrition Facts (per 100g)</CardTitle>
               </CardHeader>
@@ -465,14 +500,16 @@ const Scanner = () => {
 
             {/* Ingredient Analysis */}
             {analyzedIngredients.length > 0 && (
-              <Card variant="elevated">
+              <Card variant="elevated" className="animate-slide-up stagger-3" style={{ animationFillMode: 'both' }}>
                 <CardHeader>
                   <CardTitle>Ingredient Analysis</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {analyzedIngredients.map((ingredient, index) => (
-                      <IngredientCard key={index} {...ingredient} />
+                      <div key={index} className="animate-scale-in" style={{ animationDelay: `${0.4 + index * 0.05}s`, animationFillMode: 'both' }}>
+                        <IngredientCard {...ingredient} />
+                      </div>
                     ))}
                   </div>
                 </CardContent>
@@ -480,42 +517,49 @@ const Scanner = () => {
             )}
 
             {/* Healthier Alternatives */}
-            <Card variant="elevated">
+            <Card variant="elevated" className="animate-slide-up stagger-4" style={{ animationFillMode: 'both' }}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-primary" />
+                  <Sparkles className="w-5 h-5 text-primary animate-pulse" />
                   Healthier Alternatives
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {alternatives.map((alt, index) => (
-                  <AlternativeCard
-                    key={index}
-                    name={alt.name}
-                    brand={alt.brand}
-                    score={calculateHealthScore(
-                      {
-                        sugars: alt.nutrients.sugars,
-                        saturatedFat: alt.nutrients.saturatedFat,
-                        sodium: alt.nutrients.sodium,
-                        fiber: alt.nutrients.fiber,
-                        protein: alt.nutrients.protein,
-                      },
-                      []
-                    )}
-                    reason={
-                      index === 0
-                        ? "Higher fiber, lower sugar"
-                        : "80% less sugar"
-                    }
-                  />
+                  <div key={index} className="animate-slide-up hover-lift" style={{ animationDelay: `${0.6 + index * 0.1}s`, animationFillMode: 'both' }}>
+                    <AlternativeCard
+                      name={alt.name}
+                      brand={alt.brand}
+                      score={calculateHealthScore(
+                        {
+                          sugars: alt.nutrients.sugars,
+                          saturatedFat: alt.nutrients.saturatedFat,
+                          sodium: alt.nutrients.sodium,
+                          fiber: alt.nutrients.fiber,
+                          protein: alt.nutrients.protein,
+                        },
+                        []
+                      )}
+                      reason={
+                        index === 0
+                          ? "Higher fiber, lower sugar"
+                          : "80% less sugar"
+                      }
+                    />
+                  </div>
                 ))}
               </CardContent>
             </Card>
 
             {/* Scan Another */}
-            <Button onClick={resetScanner} variant="outline" className="w-full" size="lg">
-              <Camera className="w-5 h-5 mr-2" />
+            <Button 
+              onClick={resetScanner} 
+              variant="outline" 
+              className="w-full hover-glow group animate-slide-up stagger-5" 
+              style={{ animationFillMode: 'both' }}
+              size="lg"
+            >
+              <Camera className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
               Scan Another Product
             </Button>
           </div>
