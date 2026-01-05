@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Navigation } from "@/components/Navigation";
 import { CircularProgress } from "@/components/CircularProgress";
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 
 const Index = () => {
+  const navigate = useNavigate();
   const caloriesConsumed = 1420;
   const caloriesTarget = 2100;
   const caloriesRemaining = caloriesTarget - caloriesConsumed;
@@ -189,6 +191,7 @@ const Index = () => {
               label="Scan Food" 
               description="AI Recognition"
               variant="primary"
+              onClick={() => navigate("/scanner")}
             />
             <QuickAction 
               icon={Utensils} 
@@ -199,6 +202,7 @@ const Index = () => {
               icon={ScanLine} 
               label="Scan Label" 
               description="Product Info"
+              onClick={() => navigate("/scanner")}
             />
             <QuickAction 
               icon={Target} 
