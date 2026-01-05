@@ -191,12 +191,13 @@ const Index = () => {
               label="Scan Food" 
               description="AI Recognition"
               variant="primary"
-              onClick={() => navigate("/scanner")}
+              onClick={() => navigate("/log")}
             />
             <QuickAction 
               icon={Utensils} 
               label="Log Meal" 
               description="Manual Entry"
+              onClick={() => navigate("/log")}
             />
             <QuickAction 
               icon={ScanLine} 
@@ -208,6 +209,7 @@ const Index = () => {
               icon={Target} 
               label="Set Goal" 
               description="Adjust Target"
+              onClick={() => navigate("/goals")}
             />
           </div>
         </section>

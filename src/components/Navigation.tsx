@@ -1,22 +1,23 @@
 import { cn } from "@/lib/utils";
-import { Home, Search, Plus, BarChart3, User } from "lucide-react";
-import { useState } from "react";
+import { Home, Plus, BarChart3, Target, ChefHat } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface NavItem {
   icon: typeof Home;
   label: string;
-  active?: boolean;
+  path: string;
 }
 
 export const Navigation = () => {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const navItems: NavItem[] = [
-    { icon: Home, label: "Home" },
-    { icon: Search, label: "Search" },
-    { icon: Plus, label: "Log" },
-    { icon: BarChart3, label: "Stats" },
-    { icon: User, label: "Profile" },
+    { icon: Home, label: "Home", path: "/" },
+    { icon: ChefHat, label: "Recipes", path: "/recipes" },
+    { icon: Plus, label: "Log", path: "/log" },
+    { icon: BarChart3, label: "Stats", path: "/dashboard" },
+    { icon: Target, label: "Goals", path: "/goals" },
   ];
 
   return (
@@ -25,13 +26,13 @@ export const Navigation = () => {
         <ul className="flex items-center justify-around">
           {navItems.map((item, index) => {
             const Icon = item.icon;
-            const isActive = index === activeIndex;
+            const isActive = location.pathname === item.path;
             const isCenter = index === 2;
 
             return (
               <li key={item.label}>
                 <button
-                  onClick={() => setActiveIndex(index)}
+                  onClick={() => navigate(item.path)}
                   className={cn(
                     "flex flex-col items-center justify-center py-2 px-4 rounded-xl transition-all duration-200",
                     isCenter 
