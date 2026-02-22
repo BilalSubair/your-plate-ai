@@ -253,6 +253,7 @@ const Index = () => {
               icon={Search}
               title="Supplement Research"
               description="Search and learn about supplements with evidence-based information and reviews."
+              onClick={() => navigate("/supplements")}
             />
             <FeatureCard 
               icon={MapPin}

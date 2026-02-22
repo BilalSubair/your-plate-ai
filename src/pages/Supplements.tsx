@@ -1,0 +1,419 @@
+import { useState } from "react";
+import { Navigation } from "@/components/Navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Search,
+  Star,
+  Shield,
+  FlaskConical,
+  ThumbsUp,
+  ThumbsDown,
+  AlertTriangle,
+  ChevronRight,
+  Leaf,
+  Pill,
+  Zap,
+  Heart,
+  Brain,
+  Bone,
+  ArrowLeft,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+interface Supplement {
+  id: string;
+  name: string;
+  category: string;
+  icon: typeof Pill;
+  rating: number;
+  reviewCount: number;
+  evidenceLevel: "strong" | "moderate" | "limited";
+  benefits: string[];
+  risks: string[];
+  dosage: string;
+  description: string;
+  interactions: string[];
+  reviews: Review[];
+}
+
+interface Review {
+  user: string;
+  rating: number;
+  comment: string;
+  date: string;
+  verified: boolean;
+}
+
+const supplements: Supplement[] = [
+  {
+    id: "vitamin-d",
+    name: "Vitamin D3",
+    category: "Vitamins",
+    icon: Zap,
+    rating: 4.7,
+    reviewCount: 2340,
+    evidenceLevel: "strong",
+    benefits: ["Bone health", "Immune support", "Mood regulation", "Muscle function"],
+    risks: ["Toxicity at very high doses", "May interact with certain medications"],
+    dosage: "1,000–4,000 IU daily",
+    description: "Vitamin D3 (cholecalciferol) is essential for calcium absorption and bone health. Deficiency is common, especially in northern latitudes.",
+    interactions: ["Statins", "Steroids", "Thiazide diuretics"],
+    reviews: [
+      { user: "Sarah M.", rating: 5, comment: "Noticed huge improvement in energy and mood during winter months.", date: "2026-01-15", verified: true },
+      { user: "James K.", rating: 4, comment: "Blood levels normalized after 3 months. Doctor recommended.", date: "2025-12-20", verified: true },
+      { user: "Lisa R.", rating: 5, comment: "Game changer for seasonal affective issues. Highly recommend.", date: "2025-11-08", verified: false },
+    ],
+  },
+  {
+    id: "omega-3",
+    name: "Omega-3 Fish Oil",
+    category: "Fatty Acids",
+    icon: Heart,
+    rating: 4.5,
+    reviewCount: 1890,
+    evidenceLevel: "strong",
+    benefits: ["Heart health", "Brain function", "Anti-inflammatory", "Joint support"],
+    risks: ["Fishy aftertaste", "May thin blood at high doses"],
+    dosage: "1,000–2,000 mg EPA+DHA daily",
+    description: "Omega-3 fatty acids EPA and DHA support cardiovascular health, brain function, and reduce inflammation. Best sourced from cold-water fish.",
+    interactions: ["Blood thinners", "Blood pressure medications"],
+    reviews: [
+      { user: "Mike T.", rating: 5, comment: "Triglycerides dropped 30% after 6 months. Cardiologist is impressed.", date: "2026-02-01", verified: true },
+      { user: "Anna W.", rating: 4, comment: "Good for joint stiffness. No fishy burps with enteric coated version.", date: "2025-12-15", verified: true },
+    ],
+  },
+  {
+    id: "magnesium",
+    name: "Magnesium Glycinate",
+    category: "Minerals",
+    icon: Bone,
+    rating: 4.6,
+    reviewCount: 1560,
+    evidenceLevel: "strong",
+    benefits: ["Sleep quality", "Muscle relaxation", "Stress relief", "Bone density"],
+    risks: ["Loose stools at high doses", "May lower blood pressure"],
+    dosage: "200–400 mg elemental magnesium daily",
+    description: "Magnesium glycinate is a highly bioavailable form of magnesium that supports hundreds of enzymatic reactions. Glycinate form is gentle on the stomach.",
+    interactions: ["Antibiotics", "Bisphosphonates", "Diuretics"],
+    reviews: [
+      { user: "David L.", rating: 5, comment: "Sleep quality transformed. Fall asleep faster and wake refreshed.", date: "2026-01-28", verified: true },
+      { user: "Rachel B.", rating: 5, comment: "Leg cramps completely gone. Wish I started this sooner.", date: "2025-11-30", verified: true },
+    ],
+  },
+  {
+    id: "ashwagandha",
+    name: "Ashwagandha (KSM-66)",
+    category: "Adaptogens",
+    icon: Leaf,
+    rating: 4.3,
+    reviewCount: 980,
+    evidenceLevel: "moderate",
+    benefits: ["Stress reduction", "Cortisol management", "Athletic performance", "Thyroid support"],
+    risks: ["May cause drowsiness", "Not recommended during pregnancy", "Can affect thyroid medications"],
+    dosage: "300–600 mg KSM-66 extract daily",
+    description: "Ashwagandha is an adaptogenic herb used in Ayurvedic medicine. KSM-66 is a standardized, clinically studied extract with broad evidence for stress relief.",
+    interactions: ["Thyroid medications", "Sedatives", "Immunosuppressants"],
+    reviews: [
+      { user: "Chris P.", rating: 4, comment: "Definitely feel calmer under work stress. Takes about 2 weeks to notice.", date: "2026-02-10", verified: true },
+      { user: "Nina S.", rating: 5, comment: "Anxiety levels much more manageable. Better than anything else I've tried.", date: "2025-12-05", verified: false },
+    ],
+  },
+  {
+    id: "creatine",
+    name: "Creatine Monohydrate",
+    category: "Sports",
+    icon: Zap,
+    rating: 4.8,
+    reviewCount: 3200,
+    evidenceLevel: "strong",
+    benefits: ["Muscle strength", "Power output", "Cognitive function", "Recovery"],
+    risks: ["Water retention initially", "Rare GI discomfort"],
+    dosage: "3–5 g daily (no loading needed)",
+    description: "Creatine monohydrate is one of the most researched and effective supplements for strength and power. Emerging evidence also supports cognitive benefits.",
+    interactions: ["Nephrotoxic drugs (consult doctor)", "Caffeine (may reduce efficacy slightly)"],
+    reviews: [
+      { user: "Tom H.", rating: 5, comment: "The gold standard. Strength gains are noticeable within weeks.", date: "2026-02-18", verified: true },
+      { user: "Emily G.", rating: 5, comment: "Not just for bodybuilders. Helped my focus and energy too.", date: "2026-01-05", verified: true },
+    ],
+  },
+  {
+    id: "probiotics",
+    name: "Multi-Strain Probiotics",
+    category: "Gut Health",
+    icon: FlaskConical,
+    rating: 4.2,
+    reviewCount: 1120,
+    evidenceLevel: "moderate",
+    benefits: ["Digestive health", "Immune function", "Mental well-being", "Bloating relief"],
+    risks: ["Initial bloating/gas", "Not for immunocompromised individuals"],
+    dosage: "10–50 billion CFU daily",
+    description: "Multi-strain probiotics introduce beneficial bacteria to support gut microbiome diversity. Strain selection matters — look for clinically studied strains.",
+    interactions: ["Antibiotics (space 2 hours apart)", "Immunosuppressants"],
+    reviews: [
+      { user: "Karen D.", rating: 4, comment: "Bloating reduced significantly after 3 weeks. Stick with a quality brand.", date: "2026-01-22", verified: true },
+      { user: "Peter M.", rating: 3, comment: "Some improvement in digestion. Results vary by person.", date: "2025-12-10", verified: false },
+    ],
+  },
+  {
+    id: "lion-mane",
+    name: "Lion's Mane Mushroom",
+    category: "Nootropics",
+    icon: Brain,
+    rating: 4.4,
+    reviewCount: 760,
+    evidenceLevel: "moderate",
+    benefits: ["Cognitive function", "Nerve growth factor", "Focus & clarity", "Neuroprotection"],
+    risks: ["Rare allergic reactions", "May affect blood clotting"],
+    dosage: "500–1,000 mg extract daily",
+    description: "Lion's Mane (Hericium erinaceus) is a medicinal mushroom with compounds that stimulate nerve growth factor (NGF) production, supporting brain health.",
+    interactions: ["Blood thinners", "Diabetes medications"],
+    reviews: [
+      { user: "Alex J.", rating: 5, comment: "Mental clarity is noticeably better. Great for deep work sessions.", date: "2026-02-05", verified: true },
+      { user: "Monica F.", rating: 4, comment: "Subtle but real improvement in memory and focus after a month.", date: "2025-11-20", verified: true },
+    ],
+  },
+];
+
+const categories = ["All", "Vitamins", "Minerals", "Fatty Acids", "Adaptogens", "Sports", "Gut Health", "Nootropics"];
+
+const evidenceConfig = {
+  strong: { label: "Strong Evidence", color: "bg-success/15 text-success border-success/30" },
+  moderate: { label: "Moderate Evidence", color: "bg-warning/15 text-warning border-warning/30" },
+  limited: { label: "Limited Evidence", color: "bg-destructive/15 text-destructive border-destructive/30" },
+};
+
+const Supplements = () => {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedSupplement, setSelectedSupplement] = useState<Supplement | null>(null);
+
+  const filtered = supplements.filter((s) => {
+    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.benefits.some((b) => b.toLowerCase().includes(search.toLowerCase()));
+    const matchesCategory = selectedCategory === "All" || s.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const renderStars = (rating: number) => (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          className={`w-4 h-4 ${star <= Math.round(rating) ? "fill-warning text-warning" : "text-muted-foreground/30"}`}
+        />
+      ))}
+    </div>
+  );
+
+  if (selectedSupplement) {
+    const s = selectedSupplement;
+    const evidence = evidenceConfig[s.evidenceLevel];
+
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        {/* Header */}
+        <div className="gradient-primary px-4 pt-12 pb-6">
+          <button onClick={() => setSelectedSupplement(null)} className="flex items-center gap-1 text-primary-foreground/80 mb-4">
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">Back</span>
+          </button>
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-primary-foreground/20 flex items-center justify-center">
+              <s.icon className="w-7 h-7 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-primary-foreground">{s.name}</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-1">
+                  {renderStars(s.rating)}
+                  <span className="text-primary-foreground/80 text-sm ml-1">{s.rating}</span>
+                </div>
+                <span className="text-primary-foreground/60 text-sm">({s.reviewCount} reviews)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 -mt-3 space-y-4">
+          {/* Evidence & Dosage */}
+          <Card variant="elevated" className="animate-slide-up">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border ${evidence.color}`}>
+                  <Shield className="w-3.5 h-3.5" />
+                  {evidence.label}
+                </span>
+                <Badge variant="secondary" className="font-mono text-xs">{s.category}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">{s.description}</p>
+              <div className="bg-secondary rounded-xl p-3">
+                <p className="text-xs font-semibold text-secondary-foreground mb-1">Recommended Dosage</p>
+                <p className="text-sm font-bold text-foreground">{s.dosage}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Tabs defaultValue="benefits" className="animate-slide-up stagger-1">
+            <TabsList className="w-full">
+              <TabsTrigger value="benefits" className="flex-1">Benefits</TabsTrigger>
+              <TabsTrigger value="risks" className="flex-1">Risks</TabsTrigger>
+              <TabsTrigger value="reviews" className="flex-1">Reviews</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="benefits" className="space-y-2 mt-3">
+              {s.benefits.map((b) => (
+                <div key={b} className="flex items-center gap-3 bg-success/5 border border-success/20 rounded-xl p-3">
+                  <ThumbsUp className="w-4 h-4 text-success flex-shrink-0" />
+                  <span className="text-sm font-medium text-foreground">{b}</span>
+                </div>
+              ))}
+            </TabsContent>
+
+            <TabsContent value="risks" className="space-y-2 mt-3">
+              {s.risks.map((r) => (
+                <div key={r} className="flex items-center gap-3 bg-destructive/5 border border-destructive/20 rounded-xl p-3">
+                  <ThumbsDown className="w-4 h-4 text-destructive flex-shrink-0" />
+                  <span className="text-sm font-medium text-foreground">{r}</span>
+                </div>
+              ))}
+              {s.interactions.length > 0 && (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-warning" />
+                    <span className="text-sm font-semibold text-foreground">Drug Interactions</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {s.interactions.map((i) => (
+                      <Badge key={i} variant="outline" className="border-warning/40 text-warning text-xs">{i}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="reviews" className="space-y-3 mt-3">
+              {s.reviews.map((r, idx) => (
+                <Card key={idx} variant="glass" className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-foreground">{r.user}</span>
+                      {r.verified && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Verified</Badge>
+                      )}
+                    </div>
+                    {renderStars(r.rating)}
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{r.comment}</p>
+                  <p className="text-xs text-muted-foreground/60 mt-2">{r.date}</p>
+                </Card>
+              ))}
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <Navigation />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background pb-24">
+      {/* Header */}
+      <div className="gradient-primary px-4 pt-12 pb-8">
+        <button onClick={() => navigate("/")} className="flex items-center gap-1 text-primary-foreground/80 mb-3">
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-sm font-medium">Home</span>
+        </button>
+        <h1 className="text-2xl font-bold text-primary-foreground">Supplement Search</h1>
+        <p className="text-primary-foreground/70 text-sm mt-1">Evidence-based information & reviews</p>
+
+        <div className="relative mt-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search supplements or benefits..."
+            className="pl-10 bg-card border-0 shadow-elevated h-12 rounded-xl"
+          />
+        </div>
+      </div>
+
+      <div className="px-4 -mt-3 space-y-4">
+        {/* Categories */}
+        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                selectedCategory === cat
+                  ? "gradient-primary text-primary-foreground shadow-elevated"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Results */}
+        <div className="space-y-3">
+          {filtered.length === 0 && (
+            <Card variant="glass" className="p-8 text-center">
+              <FlaskConical className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground font-medium">No supplements found</p>
+              <p className="text-sm text-muted-foreground/70 mt-1">Try a different search term</p>
+            </Card>
+          )}
+
+          {filtered.map((s) => {
+            const evidence = evidenceConfig[s.evidenceLevel];
+            const Icon = s.icon;
+            return (
+              <Card
+                key={s.id}
+                variant="elevated"
+                className="p-4 cursor-pointer group animate-fade-in"
+                onClick={() => setSelectedSupplement(s)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-foreground truncate">{s.name}</p>
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${evidence.color}`}>
+                        <Shield className="w-3 h-3" />
+                        {s.evidenceLevel === "strong" ? "Strong" : s.evidenceLevel === "moderate" ? "Moderate" : "Limited"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {renderStars(s.rating)}
+                      <span className="text-xs text-muted-foreground">{s.rating} ({s.reviewCount})</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {s.benefits.slice(0, 3).map((b) => (
+                        <span key={b} className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full">{b}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all flex-shrink-0" />
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      <Navigation />
+    </div>
+  );
+};
+
+export default Supplements;
