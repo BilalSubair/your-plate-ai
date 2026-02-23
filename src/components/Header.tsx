@@ -1,7 +1,9 @@
-import { Bell, Flame, Menu } from "lucide-react";
+import { Bell, Flame, Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const Header = () => {
+  const { username, logout } = useAuth();
   return (
     <header className="sticky top-0 z-40 glass border-b border-border/50">
       <div className="container flex items-center justify-between h-16 px-4">
@@ -27,12 +29,14 @@ export const Header = () => {
           </Button>
           <div className="hidden md:flex items-center gap-3 ml-2">
             <div className="text-right">
-              <p className="text-sm font-medium text-foreground">Sarah Chen</p>
-              <p className="text-xs text-muted-foreground">Premium Plan</p>
+              <p className="text-sm font-medium text-foreground">{username || "User"}</p>
             </div>
             <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center ring-2 ring-primary/20">
-              <span className="text-sm font-semibold text-primary">SC</span>
+              <span className="text-sm font-semibold text-primary">{(username || "U")[0].toUpperCase()}</span>
             </div>
+            <Button variant="ghost" size="icon" onClick={logout} title="Log out">
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </div>
