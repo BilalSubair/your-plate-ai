@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +17,8 @@ import {
   Target,
   Smile,
   Frown,
-  Meh
+  Meh,
+  Loader2
 } from "lucide-react";
 import { 
   LineChart, 
@@ -35,32 +36,10 @@ import {
   Pie,
   Cell
 } from "recharts";
+import { foodApi, goalsApi } from "@/lib/api";
+import { format, parseISO } from "date-fns";
 
-const weeklyCalories = [
-  { day: "Mon", calories: 1850, target: 2100 },
-  { day: "Tue", calories: 2200, target: 2100 },
-  { day: "Wed", calories: 1950, target: 2100 },
-  { day: "Thu", calories: 2050, target: 2100 },
-  { day: "Fri", calories: 2300, target: 2100 },
-  { day: "Sat", calories: 2400, target: 2100 },
-  { day: "Sun", calories: 1420, target: 2100 },
-];
-
-const macroData = [
-  { name: "Protein", value: 85, target: 140, color: "hsl(262, 83%, 58%)" },
-  { name: "Carbs", value: 180, target: 260, color: "hsl(158, 64%, 42%)" },
-  { name: "Fat", value: 45, target: 70, color: "hsl(38, 92%, 50%)" },
-];
-
-const nutrientTrends = [
-  { day: "Mon", protein: 120, carbs: 240, fat: 65 },
-  { day: "Tue", protein: 135, carbs: 220, fat: 70 },
-  { day: "Wed", protein: 110, carbs: 250, fat: 60 },
-  { day: "Thu", protein: 145, carbs: 230, fat: 68 },
-  { day: "Fri", protein: 130, carbs: 270, fat: 75 },
-  { day: "Sat", protein: 100, carbs: 290, fat: 80 },
-  { day: "Sun", protein: 85, carbs: 180, fat: 45 },
-];
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const moodCorrelation = [
   { mood: "Great", calories: 2000, icon: Smile },
@@ -69,21 +48,114 @@ const moodCorrelation = [
   { mood: "Low", calories: 2400, icon: Frown },
 ];
 
+interface DailySummary {
+  date: string;
+  total_calories: number;
+  total_protein: number;
+  total_carbs: number;
+  total_fat: number;
+  entry_count: number;
+}
+
+interface NutritionGoals {
+  daily_calories: number;
+  daily_protein: number;
+  daily_carbs: number;
+  daily_fat: number;
+}
+
+const DEFAULT_GOALS: NutritionGoals = {
+  daily_calories: 2100,
+  daily_protein: 140,
+  daily_carbs: 260,
+  daily_fat: 70,
+};
+
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState("week");
-  
+  const [dailySummary, setDailySummary] = useState<DailySummary[]>([]);
+  const [goals, setGoals] = useState<NutritionGoals>(DEFAULT_GOALS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [summaryRes, goalsRes] = await Promise.all([
+          foodApi.getDailySummary(7),
+          goalsApi.getGoals(),
+        ]);
+        if (summaryRes.ok) {
+          setDailySummary(await summaryRes.json());
+        }
+        if (goalsRes.ok) {
+          const g = await goalsRes.json();
+          if (g && g.daily_calories) setGoals(g);
+        }
+      } catch {
+        // fallback to defaults
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const todayEntry = useMemo(() => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    return dailySummary.find((d) => d.date === today);
+  }, [dailySummary]);
+
   const todayStats = {
-    calories: { current: 1420, target: 2100 },
+    calories: { current: todayEntry?.total_calories ?? 0, target: goals.daily_calories },
     water: { current: 1.8, target: 3 },
     steps: { current: 6420, target: 10000 },
     sleep: { current: 7.5, target: 8 },
   };
 
-  const weeklyAvg = {
-    calories: 2024,
-    protein: 118,
-    steps: 7250,
-  };
+  const weeklyCalories = useMemo(
+    () =>
+      dailySummary.map((d) => ({
+        day: DAY_NAMES[parseISO(d.date).getDay()],
+        calories: d.total_calories ?? 0,
+        target: goals.daily_calories,
+      })),
+    [dailySummary, goals]
+  );
+
+  const macroData = useMemo(() => {
+    const p = todayEntry?.total_protein ?? 0;
+    const c = todayEntry?.total_carbs ?? 0;
+    const f = todayEntry?.total_fat ?? 0;
+    return [
+      { name: "Protein", value: p, target: goals.daily_protein, color: "hsl(262, 83%, 58%)" },
+      { name: "Carbs", value: c, target: goals.daily_carbs, color: "hsl(158, 64%, 42%)" },
+      { name: "Fat", value: f, target: goals.daily_fat, color: "hsl(38, 92%, 50%)" },
+    ];
+  }, [todayEntry, goals]);
+
+  const nutrientTrends = useMemo(
+    () =>
+      dailySummary.map((d) => ({
+        day: DAY_NAMES[parseISO(d.date).getDay()],
+        protein: d.total_protein ?? 0,
+        carbs: d.total_carbs ?? 0,
+        fat: d.total_fat ?? 0,
+      })),
+    [dailySummary]
+  );
+
+  const weeklyAvg = useMemo(() => {
+    if (!dailySummary.length) return { calories: 0, protein: 0, steps: 7250 };
+    const len = dailySummary.length;
+    return {
+      calories: Math.round(dailySummary.reduce((s, d) => s + (d.total_calories ?? 0), 0) / len),
+      protein: Math.round(dailySummary.reduce((s, d) => s + (d.total_protein ?? 0), 0) / len),
+      steps: 7250,
+    };
+  }, [dailySummary]);
+
+  const totalMacros = macroData.reduce((s, m) => s + m.value, 0);
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-8">
@@ -250,7 +322,7 @@ const Dashboard = () => {
                     </Pie>
                   </PieChart>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold text-foreground">310g</span>
+                    <span className="text-2xl font-bold text-foreground">{totalMacros}g</span>
                     <span className="text-xs text-muted-foreground">total</span>
                   </div>
                 </div>
