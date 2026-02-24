@@ -17,7 +17,9 @@ import {
   Sparkles,
   X,
   Check,
-  Loader2
+  Loader2,
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { toast } from "sonner";
 import { foodApi } from "@/lib/api";
@@ -59,6 +61,11 @@ const FoodLog = () => {
   const [favorites, setFavorites] = useState<FavoriteFood[]>([]);
   const [loading, setLoading] = useState(true);
   const [logging, setLogging] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<FoodEntry | null>(null);
+  const [editCalories, setEditCalories] = useState("");
+  const [editProtein, setEditProtein] = useState("");
+  const [editCarbs, setEditCarbs] = useState("");
+  const [editFat, setEditFat] = useState("");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -174,6 +181,52 @@ const FoodLog = () => {
     setAiAnalyzing(false);
   };
 
+  const handleDeleteEntry = async (entry: FoodEntry) => {
+    try {
+      const res = await foodApi.deleteEntry(entry.id);
+      if (res.ok || res.status === 204) {
+        toast.success(`Deleted ${entry.name}`);
+        fetchData();
+      } else {
+        toast.error("Failed to delete entry");
+      }
+    } catch {
+      toast.error("Could not connect to server");
+    }
+  };
+
+  const startEditing = (entry: FoodEntry) => {
+    setEditingEntry(entry);
+    setEditCalories(String(entry.calories));
+    setEditProtein(String(entry.protein));
+    setEditCarbs(String(entry.carbs));
+    setEditFat(String(entry.fat));
+  };
+
+  const handleUpdateEntry = async () => {
+    if (!editingEntry) return;
+    setLogging(true);
+    try {
+      const res = await foodApi.updateEntry(editingEntry.id, {
+        calories: parseFloat(editCalories) || 0,
+        protein: parseFloat(editProtein) || 0,
+        carbs: parseFloat(editCarbs) || 0,
+        fat: parseFloat(editFat) || 0,
+      });
+      if (res.ok) {
+        toast.success(`Updated ${editingEntry.name}`);
+        setEditingEntry(null);
+        fetchData();
+      } else {
+        toast.error("Failed to update entry");
+      }
+    } catch {
+      toast.error("Could not connect to server");
+    } finally {
+      setLogging(false);
+    }
+  };
+
   // Show favorites for quick-add; filter by search
   const displayFoods = favorites.filter((f) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -194,7 +247,7 @@ const FoodLog = () => {
           <Card variant="glass" className="animate-slide-up">
             <CardContent className="p-4">
               <h3 className="text-sm font-medium text-muted-foreground mb-2">Today's Log ({todayEntries.length} entries)</h3>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-3 mb-4">
                 <div className="text-center">
                   <p className="text-lg font-bold text-accent">
                     {Math.round(todayEntries.reduce((s, e) => s + e.calories, 0))}
@@ -219,6 +272,67 @@ const FoodLog = () => {
                   </p>
                   <p className="text-xs text-muted-foreground">Fat</p>
                 </div>
+              </div>
+
+              {/* Entry list with edit/delete */}
+              <div className="space-y-2 border-t border-border pt-3">
+                {todayEntries.map((entry) => (
+                  <div key={entry.id}>
+                    {editingEntry?.id === entry.id ? (
+                      <div className="p-3 rounded-lg bg-secondary/50 space-y-3 animate-scale-in">
+                        <p className="font-medium text-foreground text-sm">{entry.name}</p>
+                        <div className="grid grid-cols-4 gap-2">
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Calories</Label>
+                            <Input type="number" value={editCalories} onChange={(e) => setEditCalories(e.target.value)} className="h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Protein</Label>
+                            <Input type="number" value={editProtein} onChange={(e) => setEditProtein(e.target.value)} className="h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Carbs</Label>
+                            <Input type="number" value={editCarbs} onChange={(e) => setEditCarbs(e.target.value)} className="h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Fat</Label>
+                            <Input type="number" value={editFat} onChange={(e) => setEditFat(e.target.value)} className="h-8 text-sm" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditingEntry(null)}>Cancel</Button>
+                          <Button size="sm" className="flex-1 gap-1" onClick={handleUpdateEntry} disabled={logging}>
+                            {logging ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-2 rounded-lg hover:bg-secondary/30 transition-colors group">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center flex-shrink-0">
+                            <Utensils className="w-4 h-4 text-primary" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{entry.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              P:{Math.round(entry.protein)}g • C:{Math.round(entry.carbs)}g • F:{Math.round(entry.fat)}g
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm font-semibold text-accent mr-2">{Math.round(entry.calories)}</span>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => startEditing(entry)}>
+                            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteEntry(entry)}>
+                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>

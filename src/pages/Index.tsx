@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Navigation } from "@/components/Navigation";
@@ -24,50 +25,88 @@ import {
   MapPin,
   ArrowRight
 } from "lucide-react";
+import { foodApi, goalsApi } from "@/lib/api";
+
+interface TodayEntry {
+  id: number;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  meal_type?: string;
+  logged_at?: string;
+}
+
+interface NutritionGoals {
+  daily_calories: number;
+  daily_protein: number;
+  daily_carbs: number;
+  daily_fat: number;
+}
+
+const DEFAULT_GOALS: NutritionGoals = {
+  daily_calories: 2100,
+  daily_protein: 140,
+  daily_carbs: 260,
+  daily_fat: 70,
+};
 
 const Index = () => {
   const navigate = useNavigate();
-  const caloriesConsumed = 1420;
-  const caloriesTarget = 2100;
-  const caloriesRemaining = caloriesTarget - caloriesConsumed;
+  const [entries, setEntries] = useState<TodayEntry[]>([]);
+  const [goals, setGoals] = useState<NutritionGoals>(DEFAULT_GOALS);
 
-  const meals = [
-    {
-      title: "Breakfast",
-      time: "8:00 AM",
-      calories: 380,
-      items: ["Oatmeal", "Banana", "Almonds", "Green Tea"],
-      logged: true,
-    },
-    {
-      title: "Morning Snack",
-      time: "10:30 AM",
-      calories: 150,
-      items: ["Greek Yogurt", "Berries"],
-      logged: true,
-    },
-    {
-      title: "Lunch",
-      time: "1:00 PM",
-      calories: 520,
-      items: ["Grilled Chicken Salad", "Quinoa", "Olive Oil"],
-      logged: true,
-    },
-    {
-      title: "Afternoon Snack",
-      time: "4:00 PM",
-      calories: 200,
-      items: ["Apple", "Peanut Butter"],
-      logged: false,
-    },
-    {
-      title: "Dinner",
-      time: "7:30 PM",
-      calories: 600,
-      items: ["Suggested: Salmon, Brown Rice, Vegetables"],
-      logged: false,
-    },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [todayRes, goalsRes] = await Promise.all([
+          foodApi.getToday(),
+          goalsApi.getGoals(),
+        ]);
+        if (todayRes.ok) {
+          const data = await todayRes.json();
+          setEntries(Array.isArray(data) ? data : data.results || []);
+        }
+        if (goalsRes.ok) {
+          const g = await goalsRes.json();
+          if (g && g.daily_calories) setGoals(g);
+        }
+      } catch {
+        // fallback to defaults
+      }
+    };
+    fetchData();
+  }, []);
+
+  const caloriesConsumed = Math.round(entries.reduce((s, e) => s + e.calories, 0));
+  const caloriesTarget = goals.daily_calories;
+  const caloriesRemaining = Math.max(0, caloriesTarget - caloriesConsumed);
+  const proteinConsumed = Math.round(entries.reduce((s, e) => s + e.protein, 0));
+  const carbsConsumed = Math.round(entries.reduce((s, e) => s + e.carbs, 0));
+  const fatConsumed = Math.round(entries.reduce((s, e) => s + e.fat, 0));
+
+  // Group entries by meal_type for meal cards
+  const mealTypes = ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"];
+  const mealLabels: Record<string, string> = {
+    breakfast: "Breakfast",
+    morning_snack: "Morning Snack",
+    lunch: "Lunch",
+    afternoon_snack: "Afternoon Snack",
+    dinner: "Dinner",
+    snack: "Snack",
+  };
+
+  const meals = mealTypes.map((type) => {
+    const typeEntries = entries.filter((e) => e.meal_type === type);
+    return {
+      title: mealLabels[type] || type,
+      time: "",
+      calories: typeEntries.reduce((s, e) => s + e.calories, 0),
+      items: typeEntries.map((e) => e.name),
+      logged: typeEntries.length > 0,
+    };
+  }).filter((m) => m.logged || ["breakfast", "lunch", "dinner"].includes(m.title.toLowerCase()));
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-8">
@@ -133,20 +172,20 @@ const Index = () => {
             <CardContent className="space-y-5">
               <MacroBar 
                 label="Protein" 
-                current={85} 
-                target={140} 
+                current={proteinConsumed} 
+                target={goals.daily_protein} 
                 variant="protein"
               />
               <MacroBar 
                 label="Carbohydrates" 
-                current={180} 
-                target={260} 
+                current={carbsConsumed} 
+                target={goals.daily_carbs} 
                 variant="carbs"
               />
               <MacroBar 
                 label="Fats" 
-                current={45} 
-                target={70} 
+                current={fatConsumed} 
+                target={goals.daily_fat} 
                 variant="fat"
               />
               
@@ -275,7 +314,11 @@ const Index = () => {
                     <Sparkles className="w-5 h-5" />
                     <span className="text-sm font-medium opacity-90">AI Insight</span>
                   </div>
-                  <h3 className="text-xl font-bold">You're 55g short on protein today</h3>
+                  <h3 className="text-xl font-bold">
+                    {goals.daily_protein - proteinConsumed > 0
+                      ? `You're ${goals.daily_protein - proteinConsumed}g short on protein today`
+                      : "Great job hitting your protein target today! 💪"}
+                  </h3>
                   <p className="text-sm opacity-80 max-w-md">
                     Consider adding grilled chicken or Greek yogurt to your dinner to meet your muscle-building goals.
                   </p>

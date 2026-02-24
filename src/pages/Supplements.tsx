@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,6 +22,8 @@ import {
   Brain,
   Bone,
   ArrowLeft,
+  Loader2,
+  Send,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supplementsApi } from "@/lib/api";
@@ -105,6 +108,9 @@ const Supplements = () => {
   const [selectedSupplement, setSelectedSupplement] = useState<Supplement | null>(null);
   const [supplements, setSupplements] = useState<Supplement[]>(fallbackSupplements);
   const [loading, setLoading] = useState(true);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     const fetchSupplements = async () => {
@@ -144,6 +150,39 @@ const Supplements = () => {
       ))}
     </div>
   );
+
+  const handleSubmitReview = async () => {
+    if (!selectedSupplement) return;
+    setSubmittingReview(true);
+    try {
+      const res = await supplementsApi.addReview(Number(selectedSupplement.id), {
+        rating: reviewRating,
+        comment: reviewComment,
+      });
+      if (res.ok) {
+        const newReview = await res.json();
+        const updatedSupplement = {
+          ...selectedSupplement,
+          reviews: [
+            { user: newReview.username || "You", rating: newReview.rating, comment: newReview.comment, date: new Date().toISOString().split("T")[0], verified: true },
+            ...selectedSupplement.reviews,
+          ],
+          reviewCount: selectedSupplement.reviewCount + 1,
+        };
+        setSelectedSupplement(updatedSupplement);
+        setSupplements((prev) => prev.map((s) => (s.id === updatedSupplement.id ? updatedSupplement : s)));
+        setReviewComment("");
+        setReviewRating(5);
+        toast.success("Review submitted!");
+      } else {
+        toast.error("Failed to submit review");
+      }
+    } catch {
+      toast.error("Could not connect to server");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   if (selectedSupplement) {
     const s = selectedSupplement;
@@ -232,6 +271,28 @@ const Supplements = () => {
             </TabsContent>
 
             <TabsContent value="reviews" className="space-y-3 mt-3">
+              {/* Review Form */}
+              <Card variant="elevated" className="p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-foreground">Write a Review</h4>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button key={star} onClick={() => setReviewRating(star)}>
+                      <Star className={`w-5 h-5 cursor-pointer transition-colors ${star <= reviewRating ? "fill-warning text-warning" : "text-muted-foreground/30 hover:text-warning/50"}`} />
+                    </button>
+                  ))}
+                </div>
+                <Textarea
+                  placeholder="Share your experience..."
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  className="min-h-[80px]"
+                />
+                <Button size="sm" className="gap-2" onClick={handleSubmitReview} disabled={submittingReview || !reviewComment.trim()}>
+                  {submittingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Submit Review
+                </Button>
+              </Card>
+
               {s.reviews.map((r, idx) => (
                 <Card key={idx} variant="glass" className="p-4">
                   <div className="flex items-center justify-between mb-2">

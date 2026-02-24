@@ -96,6 +96,10 @@ export const foodApi = {
     apiFetch(`/food/entries/${date ? `?date=${date}` : ''}`),
   getToday: () => apiFetch('/food/entries/today/'),
   getDailySummary: (days = 7) => apiFetch(`/food/entries/daily_summary/?days=${days}`),
+  updateEntry: (id: number, data: Record<string, unknown>) =>
+    apiFetch(`/food/entries/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteEntry: (id: number) =>
+    apiFetch(`/food/entries/${id}/`, { method: 'DELETE' }),
   getFavorites: () => apiFetch('/food/favorites/'),
   addFavorite: (data: Record<string, unknown>) =>
     apiFetch('/food/favorites/', { method: 'POST', body: JSON.stringify(data) }),

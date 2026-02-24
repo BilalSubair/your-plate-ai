@@ -26,10 +26,11 @@ import {
   ArrowRight,
   Check,
   RefreshCw,
-  Zap
+  Zap,
+  X
 } from "lucide-react";
 import { toast } from "sonner";
-import { goalsApi } from "@/lib/api";
+import { goalsApi, apiFetch } from "@/lib/api";
 
 interface NutritionGoal {
   calories: number;
@@ -45,12 +46,21 @@ interface Craving {
   frequency: string;
 }
 
-const cravings: Craving[] = [
+const defaultCravings: Craving[] = [
   { name: "Ice Cream", icon: IceCream, calories: 280, frequency: "2x/week" },
   { name: "Coffee with Sugar", icon: Coffee, calories: 120, frequency: "Daily" },
   { name: "Pizza Slice", icon: Pizza, calories: 350, frequency: "1x/week" },
   { name: "Dessert", icon: Cake, calories: 400, frequency: "3x/week" },
 ];
+
+interface CravingLog {
+  id: number;
+  craving: string;
+  alternative: string;
+  intensity: number;
+  resisted: boolean;
+  logged_at: string;
+}
 
 const Goals = () => {
   const [currentWeight, setCurrentWeight] = useState(72);
@@ -67,6 +77,49 @@ const Goals = () => {
   const [cravingStrategy, setCravingStrategy] = useState<string | null>(null);
   const [autoAdjust, setAutoAdjust] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [cravingLogs, setCravingLogs] = useState<CravingLog[]>([]);
+
+  useEffect(() => {
+    const fetchCravings = async () => {
+      try {
+        const res = await goalsApi.getCravings();
+        if (res.ok) {
+          const data = await res.json();
+          setCravingLogs(Array.isArray(data) ? data : data.results || []);
+        }
+      } catch {}
+    };
+    fetchCravings();
+  }, []);
+
+  const handleLogCraving = async (craving: Craving) => {
+    try {
+      const res = await goalsApi.logCraving({
+        craving: craving.name,
+        intensity: 5,
+        resisted: false,
+      });
+      if (res.ok) {
+        toast.success(`Logged craving: ${craving.name}`);
+        const data = await res.json();
+        setCravingLogs((prev) => [data, ...prev]);
+      }
+    } catch {
+      toast.error("Could not log craving");
+    }
+  };
+
+  const handleDeleteCraving = async (id: number) => {
+    try {
+      const res = await apiFetch(`/goals/cravings/${id}/`, { method: 'DELETE' });
+      if (res.ok || res.status === 204) {
+        toast.success("Craving deleted");
+        setCravingLogs((prev) => prev.filter((c) => c.id !== id));
+      }
+    } catch {
+      toast.error("Could not delete craving");
+    }
+  };
 
   useEffect(() => {
     const fetchGoals = async () => {
@@ -396,7 +449,7 @@ const Goals = () => {
             <div>
               <h3 className="text-sm font-medium text-muted-foreground mb-3">Common Cravings</h3>
               <div className="grid grid-cols-2 gap-3">
-                {cravings.map((craving, index) => {
+                {defaultCravings.map((craving, index) => {
                   const Icon = craving.icon;
                   return (
                     <Card 
@@ -448,10 +501,39 @@ const Goals = () => {
                     </p>
                   </div>
 
-                  <Button className="w-full gap-2 hover-glow">
+                  <Button className="w-full gap-2 hover-glow" onClick={() => handleLogCraving(selectedCraving)}>
                     <Calendar className="w-4 h-4" />
-                    Schedule This Treat
+                    Log This Craving
                   </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Craving History */}
+            {cravingLogs.length > 0 && (
+              <Card variant="elevated">
+                <CardHeader>
+                  <CardTitle className="text-lg">Recent Craving Logs</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {cravingLogs.slice(0, 10).map((log) => (
+                    <div key={log.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-secondary/30 transition-colors group">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{log.craving}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Intensity: {log.intensity}/10 • {log.resisted ? "Resisted ✅" : "Gave in"} • {new Date(log.logged_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleDeleteCraving(log.id)}
+                      >
+                        <X className="w-3.5 h-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             )}
