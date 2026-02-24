@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,7 @@ import {
   Zap
 } from "lucide-react";
 import { toast } from "sonner";
+import { goalsApi } from "@/lib/api";
 
 interface NutritionGoal {
   calories: number;
@@ -65,6 +66,33 @@ const Goals = () => {
   const [selectedCraving, setSelectedCraving] = useState<Craving | null>(null);
   const [cravingStrategy, setCravingStrategy] = useState<string | null>(null);
   const [autoAdjust, setAutoAdjust] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchGoals = async () => {
+      try {
+        const res = await goalsApi.getGoals();
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.daily_calories) {
+            setGoals({
+              calories: data.daily_calories,
+              protein: data.daily_protein,
+              carbs: data.daily_carbs,
+              fat: data.daily_fat,
+            });
+            if (data.current_weight) setCurrentWeight(data.current_weight);
+            if (data.target_weight) setTargetWeight(data.target_weight);
+            if (data.activity_level) setActivityLevel(data.activity_level);
+            if (data.weekly_target) setWeeklyTarget(data.weekly_target);
+          }
+        }
+      } catch {
+        // use defaults
+      }
+    };
+    fetchGoals();
+  }, []);
 
   const calculateBMR = () => {
     // Simplified BMR calculation
@@ -81,15 +109,38 @@ const Goals = () => {
 
   const weeksToGoal = Math.round((currentWeight - targetWeight) / weeklyTarget);
 
-  const handleRecalculate = () => {
+  const handleRecalculate = async () => {
     const newCalories = calculateTDEE() - calculateDeficit();
-    setGoals({
+    const newGoals = {
       calories: Math.max(1200, newCalories),
-      protein: Math.round(currentWeight * 1.8), // 1.8g per kg
-      carbs: Math.round((newCalories * 0.45) / 4), // 45% carbs
-      fat: Math.round((newCalories * 0.25) / 9), // 25% fat
-    });
-    toast.success("Goals updated based on your settings!");
+      protein: Math.round(currentWeight * 1.8),
+      carbs: Math.round((newCalories * 0.45) / 4),
+      fat: Math.round((newCalories * 0.25) / 9),
+    };
+    setGoals(newGoals);
+
+    setSaving(true);
+    try {
+      const res = await goalsApi.updateGoals({
+        daily_calories: newGoals.calories,
+        daily_protein: newGoals.protein,
+        daily_carbs: newGoals.carbs,
+        daily_fat: newGoals.fat,
+        current_weight: currentWeight,
+        target_weight: targetWeight,
+        activity_level: activityLevel,
+        weekly_target: weeklyTarget,
+      });
+      if (res.ok) {
+        toast.success("Goals saved to your profile!");
+      } else {
+        toast.success("Goals updated locally!");
+      }
+    } catch {
+      toast.success("Goals updated locally!");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCravingStrategy = (craving: Craving) => {
@@ -300,9 +351,9 @@ const Goals = () => {
                   </div>
                 </div>
 
-                <Button onClick={handleRecalculate} className="w-full gap-2 hover-glow">
-                  <RefreshCw className="w-4 h-4" />
-                  Recalculate Based on Settings
+                <Button onClick={handleRecalculate} disabled={saving} className="w-full gap-2 hover-glow">
+                  <RefreshCw className={`w-4 h-4 ${saving ? 'animate-spin' : ''}`} />
+                  {saving ? "Saving..." : "Recalculate & Save"}
                 </Button>
               </CardContent>
             </Card>
