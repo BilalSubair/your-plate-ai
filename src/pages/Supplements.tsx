@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,9 +23,22 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supplementsApi } from "@/lib/api";
+import { toast } from "sonner";
+
+// Icon mapping for categories from API
+const categoryIconMap: Record<string, typeof Pill> = {
+  Vitamins: Zap,
+  Minerals: Bone,
+  "Fatty Acids": Heart,
+  Adaptogens: Leaf,
+  Sports: Zap,
+  "Gut Health": FlaskConical,
+  Nootropics: Brain,
+};
 
 interface Supplement {
-  id: string;
+  id: string | number;
   name: string;
   category: string;
   icon: typeof Pill;
@@ -48,135 +61,34 @@ interface Review {
   verified: boolean;
 }
 
-const supplements: Supplement[] = [
-  {
-    id: "vitamin-d",
-    name: "Vitamin D3",
-    category: "Vitamins",
-    icon: Zap,
-    rating: 4.7,
-    reviewCount: 2340,
-    evidenceLevel: "strong",
-    benefits: ["Bone health", "Immune support", "Mood regulation", "Muscle function"],
-    risks: ["Toxicity at very high doses", "May interact with certain medications"],
-    dosage: "1,000–4,000 IU daily",
-    description: "Vitamin D3 (cholecalciferol) is essential for calcium absorption and bone health. Deficiency is common, especially in northern latitudes.",
-    interactions: ["Statins", "Steroids", "Thiazide diuretics"],
-    reviews: [
-      { user: "Sarah M.", rating: 5, comment: "Noticed huge improvement in energy and mood during winter months.", date: "2026-01-15", verified: true },
-      { user: "James K.", rating: 4, comment: "Blood levels normalized after 3 months. Doctor recommended.", date: "2025-12-20", verified: true },
-      { user: "Lisa R.", rating: 5, comment: "Game changer for seasonal affective issues. Highly recommend.", date: "2025-11-08", verified: false },
-    ],
-  },
-  {
-    id: "omega-3",
-    name: "Omega-3 Fish Oil",
-    category: "Fatty Acids",
-    icon: Heart,
-    rating: 4.5,
-    reviewCount: 1890,
-    evidenceLevel: "strong",
-    benefits: ["Heart health", "Brain function", "Anti-inflammatory", "Joint support"],
-    risks: ["Fishy aftertaste", "May thin blood at high doses"],
-    dosage: "1,000–2,000 mg EPA+DHA daily",
-    description: "Omega-3 fatty acids EPA and DHA support cardiovascular health, brain function, and reduce inflammation. Best sourced from cold-water fish.",
-    interactions: ["Blood thinners", "Blood pressure medications"],
-    reviews: [
-      { user: "Mike T.", rating: 5, comment: "Triglycerides dropped 30% after 6 months. Cardiologist is impressed.", date: "2026-02-01", verified: true },
-      { user: "Anna W.", rating: 4, comment: "Good for joint stiffness. No fishy burps with enteric coated version.", date: "2025-12-15", verified: true },
-    ],
-  },
-  {
-    id: "magnesium",
-    name: "Magnesium Glycinate",
-    category: "Minerals",
-    icon: Bone,
-    rating: 4.6,
-    reviewCount: 1560,
-    evidenceLevel: "strong",
-    benefits: ["Sleep quality", "Muscle relaxation", "Stress relief", "Bone density"],
-    risks: ["Loose stools at high doses", "May lower blood pressure"],
-    dosage: "200–400 mg elemental magnesium daily",
-    description: "Magnesium glycinate is a highly bioavailable form of magnesium that supports hundreds of enzymatic reactions. Glycinate form is gentle on the stomach.",
-    interactions: ["Antibiotics", "Bisphosphonates", "Diuretics"],
-    reviews: [
-      { user: "David L.", rating: 5, comment: "Sleep quality transformed. Fall asleep faster and wake refreshed.", date: "2026-01-28", verified: true },
-      { user: "Rachel B.", rating: 5, comment: "Leg cramps completely gone. Wish I started this sooner.", date: "2025-11-30", verified: true },
-    ],
-  },
-  {
-    id: "ashwagandha",
-    name: "Ashwagandha (KSM-66)",
-    category: "Adaptogens",
-    icon: Leaf,
-    rating: 4.3,
-    reviewCount: 980,
-    evidenceLevel: "moderate",
-    benefits: ["Stress reduction", "Cortisol management", "Athletic performance", "Thyroid support"],
-    risks: ["May cause drowsiness", "Not recommended during pregnancy", "Can affect thyroid medications"],
-    dosage: "300–600 mg KSM-66 extract daily",
-    description: "Ashwagandha is an adaptogenic herb used in Ayurvedic medicine. KSM-66 is a standardized, clinically studied extract with broad evidence for stress relief.",
-    interactions: ["Thyroid medications", "Sedatives", "Immunosuppressants"],
-    reviews: [
-      { user: "Chris P.", rating: 4, comment: "Definitely feel calmer under work stress. Takes about 2 weeks to notice.", date: "2026-02-10", verified: true },
-      { user: "Nina S.", rating: 5, comment: "Anxiety levels much more manageable. Better than anything else I've tried.", date: "2025-12-05", verified: false },
-    ],
-  },
-  {
-    id: "creatine",
-    name: "Creatine Monohydrate",
-    category: "Sports",
-    icon: Zap,
-    rating: 4.8,
-    reviewCount: 3200,
-    evidenceLevel: "strong",
-    benefits: ["Muscle strength", "Power output", "Cognitive function", "Recovery"],
-    risks: ["Water retention initially", "Rare GI discomfort"],
-    dosage: "3–5 g daily (no loading needed)",
-    description: "Creatine monohydrate is one of the most researched and effective supplements for strength and power. Emerging evidence also supports cognitive benefits.",
-    interactions: ["Nephrotoxic drugs (consult doctor)", "Caffeine (may reduce efficacy slightly)"],
-    reviews: [
-      { user: "Tom H.", rating: 5, comment: "The gold standard. Strength gains are noticeable within weeks.", date: "2026-02-18", verified: true },
-      { user: "Emily G.", rating: 5, comment: "Not just for bodybuilders. Helped my focus and energy too.", date: "2026-01-05", verified: true },
-    ],
-  },
-  {
-    id: "probiotics",
-    name: "Multi-Strain Probiotics",
-    category: "Gut Health",
-    icon: FlaskConical,
-    rating: 4.2,
-    reviewCount: 1120,
-    evidenceLevel: "moderate",
-    benefits: ["Digestive health", "Immune function", "Mental well-being", "Bloating relief"],
-    risks: ["Initial bloating/gas", "Not for immunocompromised individuals"],
-    dosage: "10–50 billion CFU daily",
-    description: "Multi-strain probiotics introduce beneficial bacteria to support gut microbiome diversity. Strain selection matters — look for clinically studied strains.",
-    interactions: ["Antibiotics (space 2 hours apart)", "Immunosuppressants"],
-    reviews: [
-      { user: "Karen D.", rating: 4, comment: "Bloating reduced significantly after 3 weeks. Stick with a quality brand.", date: "2026-01-22", verified: true },
-      { user: "Peter M.", rating: 3, comment: "Some improvement in digestion. Results vary by person.", date: "2025-12-10", verified: false },
-    ],
-  },
-  {
-    id: "lion-mane",
-    name: "Lion's Mane Mushroom",
-    category: "Nootropics",
-    icon: Brain,
-    rating: 4.4,
-    reviewCount: 760,
-    evidenceLevel: "moderate",
-    benefits: ["Cognitive function", "Nerve growth factor", "Focus & clarity", "Neuroprotection"],
-    risks: ["Rare allergic reactions", "May affect blood clotting"],
-    dosage: "500–1,000 mg extract daily",
-    description: "Lion's Mane (Hericium erinaceus) is a medicinal mushroom with compounds that stimulate nerve growth factor (NGF) production, supporting brain health.",
-    interactions: ["Blood thinners", "Diabetes medications"],
-    reviews: [
-      { user: "Alex J.", rating: 5, comment: "Mental clarity is noticeably better. Great for deep work sessions.", date: "2026-02-05", verified: true },
-      { user: "Monica F.", rating: 4, comment: "Subtle but real improvement in memory and focus after a month.", date: "2025-11-20", verified: true },
-    ],
-  },
+// Fallback mock data used when API is unreachable
+const fallbackSupplements: Supplement[] = [
+  { id: "vitamin-d", name: "Vitamin D3", category: "Vitamins", icon: Zap, rating: 4.7, reviewCount: 2340, evidenceLevel: "strong", benefits: ["Bone health", "Immune support", "Mood regulation"], risks: ["Toxicity at very high doses"], dosage: "1,000–4,000 IU daily", description: "Essential for calcium absorption and bone health.", interactions: ["Statins", "Steroids"], reviews: [] },
+  { id: "omega-3", name: "Omega-3 Fish Oil", category: "Fatty Acids", icon: Heart, rating: 4.5, reviewCount: 1890, evidenceLevel: "strong", benefits: ["Heart health", "Brain function", "Anti-inflammatory"], risks: ["Fishy aftertaste"], dosage: "1,000–2,000 mg EPA+DHA daily", description: "Supports cardiovascular health and brain function.", interactions: ["Blood thinners"], reviews: [] },
+  { id: "creatine", name: "Creatine Monohydrate", category: "Sports", icon: Zap, rating: 4.8, reviewCount: 3200, evidenceLevel: "strong", benefits: ["Muscle strength", "Power output", "Cognitive function"], risks: ["Water retention initially"], dosage: "3–5 g daily", description: "One of the most researched supplements for strength.", interactions: [], reviews: [] },
 ];
+
+const mapApiSupplement = (s: any): Supplement => ({
+  id: s.id,
+  name: s.name,
+  category: s.category || "Other",
+  icon: categoryIconMap[s.category] || Pill,
+  rating: s.avg_rating ?? 0,
+  reviewCount: s.reviews?.length ?? 0,
+  evidenceLevel: s.evidence_level || "limited",
+  benefits: s.benefits || [],
+  risks: s.risks || [],
+  dosage: s.dosage || "",
+  description: s.description || "",
+  interactions: s.interactions || [],
+  reviews: (s.reviews || []).map((r: any) => ({
+    user: r.username || "Anonymous",
+    rating: r.rating,
+    comment: r.comment,
+    date: r.created_at?.split("T")[0] || "",
+    verified: true,
+  })),
+});
 
 const categories = ["All", "Vitamins", "Minerals", "Fatty Acids", "Adaptogens", "Sports", "Gut Health", "Nootropics"];
 
@@ -191,6 +103,29 @@ const Supplements = () => {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedSupplement, setSelectedSupplement] = useState<Supplement | null>(null);
+  const [supplements, setSupplements] = useState<Supplement[]>(fallbackSupplements);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSupplements = async () => {
+      setLoading(true);
+      try {
+        const res = await supplementsApi.getAll();
+        if (res.ok) {
+          const data = await res.json();
+          const results = Array.isArray(data) ? data : data.results || [];
+          if (results.length > 0) {
+            setSupplements(results.map(mapApiSupplement));
+          }
+        }
+      } catch {
+        // use fallback
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSupplements();
+  }, []);
 
   const filtered = supplements.filter((s) => {
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
