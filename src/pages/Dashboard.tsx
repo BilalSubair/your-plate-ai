@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CircularProgress } from "@/components/CircularProgress";
-import { 
-  TrendingUp, 
+import {
+  TrendingUp,
   TrendingDown,
   Calendar,
   Flame,
@@ -20,13 +20,13 @@ import {
   Meh,
   Loader2
 } from "lucide-react";
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   AreaChart,
   Area,
@@ -59,31 +59,42 @@ interface DailySummary {
 
 interface NutritionGoals {
   daily_calories: number;
-  daily_protein: number;
-  daily_carbs: number;
-  daily_fat: number;
+  protein_grams: number;
+  carbs_grams: number;
+  fat_grams: number;
 }
 
 const DEFAULT_GOALS: NutritionGoals = {
   daily_calories: 2100,
-  daily_protein: 140,
-  daily_carbs: 260,
-  daily_fat: 70,
+  protein_grams: 140,
+  carbs_grams: 260,
+  fat_grams: 70,
 };
+
+interface DailyTracking {
+  water_ml: number;
+  steps: number;
+  sleep_hours: number;
+  active_calories: number;
+}
 
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState("week");
   const [dailySummary, setDailySummary] = useState<DailySummary[]>([]);
   const [goals, setGoals] = useState<NutritionGoals>(DEFAULT_GOALS);
+  const [tracking, setTracking] = useState<DailyTracking>({
+    water_ml: 0, steps: 0, sleep_hours: 0, active_calories: 0
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [summaryRes, goalsRes] = await Promise.all([
+        const [summaryRes, goalsRes, trackingRes] = await Promise.all([
           foodApi.getDailySummary(7),
           goalsApi.getGoals(),
+          goalsApi.getDailyTracking(),
         ]);
         if (summaryRes.ok) {
           setDailySummary(await summaryRes.json());
@@ -91,6 +102,10 @@ const Dashboard = () => {
         if (goalsRes.ok) {
           const g = await goalsRes.json();
           if (g && g.daily_calories) setGoals(g);
+        }
+        if (trackingRes.ok) {
+          const t = await trackingRes.json();
+          if (t && t.id) setTracking(t);
         }
       } catch {
         // fallback to defaults
@@ -108,9 +123,9 @@ const Dashboard = () => {
 
   const todayStats = {
     calories: { current: todayEntry?.total_calories ?? 0, target: goals.daily_calories },
-    water: { current: 1.8, target: 3 },
-    steps: { current: 6420, target: 10000 },
-    sleep: { current: 7.5, target: 8 },
+    water: { current: (tracking.water_ml / 1000).toFixed(1), target: 3 },
+    steps: { current: tracking.steps, target: 10000 },
+    sleep: { current: tracking.sleep_hours, target: 8 },
   };
 
   const weeklyCalories = useMemo(
@@ -128,9 +143,9 @@ const Dashboard = () => {
     const c = todayEntry?.total_carbs ?? 0;
     const f = todayEntry?.total_fat ?? 0;
     return [
-      { name: "Protein", value: p, target: goals.daily_protein, color: "hsl(262, 83%, 58%)" },
-      { name: "Carbs", value: c, target: goals.daily_carbs, color: "hsl(158, 64%, 42%)" },
-      { name: "Fat", value: f, target: goals.daily_fat, color: "hsl(38, 92%, 50%)" },
+      { name: "Protein", value: p, target: goals.protein_grams || DEFAULT_GOALS.protein_grams, color: "hsl(262, 83%, 58%)" },
+      { name: "Carbs", value: c, target: goals.carbs_grams || DEFAULT_GOALS.carbs_grams, color: "hsl(158, 64%, 42%)" },
+      { name: "Fat", value: f, target: goals.fat_grams || DEFAULT_GOALS.fat_grams, color: "hsl(38, 92%, 50%)" },
     ];
   }, [todayEntry, goals]);
 
@@ -146,21 +161,21 @@ const Dashboard = () => {
   );
 
   const weeklyAvg = useMemo(() => {
-    if (!dailySummary.length) return { calories: 0, protein: 0, steps: 7250 };
+    if (!dailySummary.length) return { calories: 0, protein: 0, steps: tracking.steps || 0 };
     const len = dailySummary.length;
     return {
       calories: Math.round(dailySummary.reduce((s, d) => s + (d.total_calories ?? 0), 0) / len),
       protein: Math.round(dailySummary.reduce((s, d) => s + (d.total_protein ?? 0), 0) / len),
-      steps: 7250,
+      steps: tracking.steps || 0,
     };
-  }, [dailySummary]);
+  }, [dailySummary, tracking.steps]);
 
   const totalMacros = macroData.reduce((s, m) => s + m.value, 0);
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-8">
       <Header />
-      
+
       <main className="container px-4 py-6 space-y-6">
         <section className="animate-slide-up">
           <div className="flex items-center justify-between">
@@ -190,7 +205,7 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card variant="elevated" className="hover-lift">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -204,7 +219,7 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card variant="elevated" className="hover-lift">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -218,7 +233,7 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card variant="elevated" className="hover-lift">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -256,35 +271,35 @@ const Dashboard = () => {
                   <AreaChart data={weeklyCalories}>
                     <defs>
                       <linearGradient id="colorCalories" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(158, 64%, 42%)" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="hsl(158, 64%, 42%)" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="hsl(158, 64%, 42%)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(158, 64%, 42%)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px'
                       }}
                     />
-                    <Line 
-                      type="monotone" 
-                      dataKey="target" 
-                      stroke="hsl(var(--muted-foreground))" 
+                    <Line
+                      type="monotone"
+                      dataKey="target"
+                      stroke="hsl(var(--muted-foreground))"
                       strokeDasharray="5 5"
                       strokeWidth={2}
                       dot={false}
                     />
-                    <Area 
-                      type="monotone" 
-                      dataKey="calories" 
-                      stroke="hsl(158, 64%, 42%)" 
+                    <Area
+                      type="monotone"
+                      dataKey="calories"
+                      stroke="hsl(158, 64%, 42%)"
                       strokeWidth={3}
-                      fillOpacity={1} 
-                      fill="url(#colorCalories)" 
+                      fillOpacity={1}
+                      fill="url(#colorCalories)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -327,13 +342,13 @@ const Dashboard = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="space-y-3">
                 {macroData.map((macro) => (
                   <div key={macro.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div 
-                        className="w-3 h-3 rounded-full" 
+                      <div
+                        className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: macro.color }}
                       />
                       <span className="text-sm text-foreground">{macro.name}</span>
@@ -363,9 +378,9 @@ const Dashboard = () => {
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px'
                       }}
@@ -376,7 +391,7 @@ const Dashboard = () => {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              
+
               <div className="flex items-center justify-center gap-6 mt-4">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-protein" />
@@ -412,17 +427,16 @@ const Dashboard = () => {
                 {moodCorrelation.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <div 
+                    <div
                       key={item.mood}
                       className="text-center p-3 rounded-lg bg-secondary/30 hover-lift"
                     >
-                      <Icon className={`w-6 h-6 mx-auto mb-2 ${
-                        item.mood === 'Great' || item.mood === 'Good' 
-                          ? 'text-success' 
-                          : item.mood === 'Okay' 
-                            ? 'text-warning' 
-                            : 'text-destructive'
-                      }`} />
+                      <Icon className={`w-6 h-6 mx-auto mb-2 ${item.mood === 'Great' || item.mood === 'Good'
+                        ? 'text-success'
+                        : item.mood === 'Okay'
+                          ? 'text-warning'
+                          : 'text-destructive'
+                        }`} />
                       <p className="font-semibold text-foreground">{item.mood}</p>
                       <p className="text-xs text-muted-foreground">{item.calories} avg</p>
                     </div>

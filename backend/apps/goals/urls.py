@@ -7,5 +7,6 @@ router.register('cravings', views.CravingViewSet, basename='craving')
 
 urlpatterns = [
     path('nutrition/', views.NutritionGoalView.as_view(), name='nutrition-goal'),
+    path('tracking/today/', views.DailyTrackingView.as_view(), name='daily-tracking-today'),
     path('', include(router.urls)),
 ]

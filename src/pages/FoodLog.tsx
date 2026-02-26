@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Camera, 
-  Plus, 
-  Search, 
-  Clock, 
-  Flame, 
+import {
+  Camera,
+  Plus,
+  Search,
+  Clock,
+  Flame,
   Utensils,
   ImageIcon,
   Sparkles,
@@ -23,6 +23,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { foodApi } from "@/lib/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface FoodEntry {
   id: number;
@@ -46,7 +53,13 @@ interface FavoriteFood {
   fat: number;
 }
 
-const FoodLog = () => {
+interface FoodLogProps {
+  isModal?: boolean;
+  defaultMealType?: string;
+  onLogSuccess?: () => void;
+}
+
+const FoodLog = ({ isModal = false, defaultMealType, onLogSuccess }: FoodLogProps = {}) => {
   const [activeTab, setActiveTab] = useState("manual");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFood, setSelectedFood] = useState<FavoriteFood | null>(null);
@@ -55,6 +68,7 @@ const FoodLog = () => {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<FoodEntry | null>(null);
+  const [mealType, setMealType] = useState(defaultMealType || "snack");
 
   // API state
   const [todayEntries, setTodayEntries] = useState<FoodEntry[]>([]);
@@ -66,6 +80,9 @@ const FoodLog = () => {
   const [editProtein, setEditProtein] = useState("");
   const [editCarbs, setEditCarbs] = useState("");
   const [editFat, setEditFat] = useState("");
+
+  const [searchResults, setSearchResults] = useState<FavoriteFood[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -84,7 +101,7 @@ const FoodLog = () => {
         setFavorites(Array.isArray(data) ? data : data.results || []);
       }
     } catch {
-      // API not reachable – keep empty state
+      // API not reachable
     } finally {
       setLoading(false);
     }
@@ -93,6 +110,39 @@ const FoodLog = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (defaultMealType) {
+      setMealType(defaultMealType);
+    }
+  }, [defaultMealType]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await foodApi.searchFatSecret(searchQuery);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+        } else {
+          setSearchResults([]);
+        }
+      } catch (err) {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleLogFood = async () => {
     if (!selectedFood) return;
@@ -106,7 +156,7 @@ const FoodLog = () => {
         carbs: selectedFood.carbs * servings,
         fat: selectedFood.fat * servings,
         servings,
-        meal_type: "snack",
+        meal_type: mealType,
       });
       if (res.ok) {
         toast.success(`Logged ${selectedFood.name}`, {
@@ -115,6 +165,7 @@ const FoodLog = () => {
         setSelectedFood(null);
         setQuantity("1");
         fetchData();
+        if (onLogSuccess) onLogSuccess();
       } else {
         toast.error("Failed to log food");
       }
@@ -135,7 +186,7 @@ const FoodLog = () => {
         protein: aiResult.protein,
         carbs: aiResult.carbs,
         fat: aiResult.fat,
-        meal_type: "snack",
+        meal_type: mealType,
       });
       if (res.ok) {
         toast.success(`Logged ${aiResult.name}`, {
@@ -144,6 +195,7 @@ const FoodLog = () => {
         setCapturedImage(null);
         setAiResult(null);
         fetchData();
+        if (onLogSuccess) onLogSuccess();
       } else {
         toast.error("Failed to log food");
       }
@@ -154,12 +206,17 @@ const FoodLog = () => {
     }
   };
 
-  const handlePhotoCapture = () => {
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     setIsCapturing(true);
-    setTimeout(() => {
-      setCapturedImage("https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400");
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setCapturedImage(event.target?.result as string);
       setIsCapturing(false);
       setAiAnalyzing(true);
+
       setTimeout(() => {
         setAiResult({
           id: Date.now(),
@@ -168,11 +225,12 @@ const FoodLog = () => {
           protein: 12,
           carbs: 28,
           fat: 24,
-          image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400",
+          image: event.target?.result as string,
         });
         setAiAnalyzing(false);
       }, 2000);
-    }, 1500);
+    };
+    reader.readAsDataURL(file);
   };
 
   const resetPhoto = () => {
@@ -227,23 +285,22 @@ const FoodLog = () => {
     }
   };
 
-  // Show favorites for quick-add; filter by search
-  const displayFoods = favorites.filter((f) =>
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const displayFoods = searchQuery ? searchResults : favorites;
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-8">
-      <Header />
-      
-      <main className="container px-4 py-6 space-y-6">
-        <section className="animate-slide-up">
-          <h1 className="text-2xl font-bold text-foreground">Log Food</h1>
-          <p className="text-muted-foreground mt-1">Track what you eat manually or with AI</p>
-        </section>
+    <div className={isModal ? "" : "min-h-screen bg-background pb-24 md:pb-8"}>
+      {!isModal && <Header />}
+
+      <main className={isModal ? "space-y-4" : "container px-4 py-6 space-y-6"}>
+        {!isModal && (
+          <section className="animate-slide-up">
+            <h1 className="text-2xl font-bold text-foreground">Log Food</h1>
+            <p className="text-muted-foreground mt-1">Track what you eat manually or with AI</p>
+          </section>
+        )}
 
         {/* Today's summary */}
-        {todayEntries.length > 0 && (
+        {todayEntries.length > 0 && !isModal && (
           <Card variant="glass" className="animate-slide-up">
             <CardContent className="p-4">
               <h3 className="text-sm font-medium text-muted-foreground mb-2">Today's Log ({todayEntries.length} entries)</h3>
@@ -354,8 +411,8 @@ const FoodLog = () => {
             {/* Search Bar */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input 
-                placeholder="Search favorites..." 
+              <Input
+                placeholder="Search favorites..."
                 className="pl-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -371,16 +428,16 @@ const FoodLog = () => {
                       <h3 className="font-semibold text-foreground">{selectedFood.name}</h3>
                       <p className="text-sm text-muted-foreground">per serving</p>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="h-8 w-8"
                       onClick={() => setSelectedFood(null)}
                     >
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
-                  
+
                   <div className="grid grid-cols-4 gap-3 mb-4">
                     <div className="text-center p-2 rounded-lg bg-accent/10">
                       <p className="text-lg font-bold text-accent">{Math.round(selectedFood.calories * parseFloat(quantity || "1"))}</p>
@@ -403,9 +460,9 @@ const FoodLog = () => {
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <Label htmlFor="quantity" className="text-xs text-muted-foreground">Servings</Label>
-                      <Input 
+                      <Input
                         id="quantity"
-                        type="number" 
+                        type="number"
                         min="0.25"
                         step="0.25"
                         value={quantity}
@@ -413,7 +470,21 @@ const FoodLog = () => {
                         className="mt-1"
                       />
                     </div>
-                    <Button 
+                    <div className="flex-1">
+                      <Label className="text-xs text-muted-foreground">Meal</Label>
+                      <Select value={mealType} onValueChange={setMealType}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select meal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="breakfast">Breakfast</SelectItem>
+                          <SelectItem value="lunch">Lunch</SelectItem>
+                          <SelectItem value="dinner">Dinner</SelectItem>
+                          <SelectItem value="snack">Snack</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
                       className="flex-1 mt-5 gap-2 hover-glow"
                       onClick={handleLogFood}
                       disabled={logging}
@@ -433,21 +504,21 @@ const FoodLog = () => {
                 {searchQuery ? "Search Results" : "Favorite Foods"}
               </h3>
 
-              {loading ? (
+              {loading || isSearching ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
               ) : displayFoods.length === 0 ? (
                 <Card>
                   <CardContent className="p-6 text-center text-muted-foreground">
-                    {searchQuery ? "No matching favorites" : "No favorites yet. Add some below!"}
+                    {searchQuery ? "No matching results found on FatSecret" : "No favorites yet. Add some below!"}
                   </CardContent>
                 </Card>
               ) : (
                 <div className="space-y-2">
                   {displayFoods.map((food, index) => (
-                    <Card 
-                      key={food.id} 
+                    <Card
+                      key={food.id}
                       className={`hover-lift cursor-pointer transition-all ${selectedFood?.id === food.id ? 'ring-2 ring-primary' : ''}`}
                       style={{ animationDelay: `${index * 0.05}s` }}
                       onClick={() => setSelectedFood(food)}
@@ -476,10 +547,59 @@ const FoodLog = () => {
             </div>
 
             {/* Add Custom Food */}
-            <Button variant="outline" className="w-full gap-2">
-              <Plus className="w-4 h-4" />
-              Add Custom Food
-            </Button>
+            {editingEntry?.id === -1 ? (
+              <div className="p-4 rounded-lg bg-secondary/30 space-y-4 animate-scale-in">
+                <p className="font-medium text-foreground">Add Custom Food</p>
+                <Input placeholder="Food Name" value={selectedFood?.name || ""} onChange={(e) => setSelectedFood({ ...selectedFood, id: Date.now(), name: e.target.value, calories: selectedFood?.calories || 0, protein: selectedFood?.protein || 0, carbs: selectedFood?.carbs || 0, fat: selectedFood?.fat || 0 })} />
+                <div className="grid grid-cols-4 gap-2">
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Calories</Label>
+                    <Input type="number" placeholder="kcal" onChange={(e) => setSelectedFood(prev => prev ? { ...prev, calories: parseFloat(e.target.value) || 0 } : null)} className="h-8 text-sm" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Protein</Label>
+                    <Input type="number" placeholder="g" onChange={(e) => setSelectedFood(prev => prev ? { ...prev, protein: parseFloat(e.target.value) || 0 } : null)} className="h-8 text-sm" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Carbs</Label>
+                    <Input type="number" placeholder="g" onChange={(e) => setSelectedFood(prev => prev ? { ...prev, carbs: parseFloat(e.target.value) || 0 } : null)} className="h-8 text-sm" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Fat</Label>
+                    <Input type="number" placeholder="g" onChange={(e) => setSelectedFood(prev => prev ? { ...prev, fat: parseFloat(e.target.value) || 0 } : null)} className="h-8 text-sm" />
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <Label className="text-[10px] text-muted-foreground">Meal Category</Label>
+                  <Select value={mealType} onValueChange={setMealType}>
+                    <SelectTrigger className="mt-1 h-8 text-sm">
+                      <SelectValue placeholder="Select meal type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="breakfast">Breakfast</SelectItem>
+                      <SelectItem value="lunch">Lunch</SelectItem>
+                      <SelectItem value="dinner">Dinner</SelectItem>
+                      <SelectItem value="snack">Snack</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setEditingEntry(null); setSelectedFood(null); }}>Cancel</Button>
+                  <Button size="sm" className="flex-1 gap-1" onClick={() => { handleLogFood(); setEditingEntry(null); }} disabled={logging || !selectedFood?.name}>
+                    {logging ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                    Log It
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="outline" className="w-full gap-2" onClick={() => {
+                setEditingEntry({ id: -1, name: "", calories: 0, protein: 0, carbs: 0, fat: 0 });
+                setSelectedFood({ id: Date.now(), name: "", calories: 0, protein: 0, carbs: 0, fat: 0 });
+              }}>
+                <Plus className="w-4 h-4" />
+                Add Custom Food
+              </Button>
+            )}
           </TabsContent>
 
           <TabsContent value="photo" className="space-y-4 mt-4">
@@ -499,14 +619,22 @@ const FoodLog = () => {
                         </div>
                         <p className="text-muted-foreground mb-4">Take a photo of your food</p>
                         <div className="flex gap-3">
-                          <Button onClick={handlePhotoCapture} className="gap-2 hover-glow">
+                          <Button onClick={() => document.getElementById('cameraInput')?.click()} className="gap-2 hover-glow">
                             <Camera className="w-4 h-4" />
                             Take Photo
                           </Button>
-                          <Button variant="outline" className="gap-2">
+                          <Button variant="outline" className="gap-2" onClick={() => document.getElementById('cameraInput')?.click()}>
                             <ImageIcon className="w-4 h-4" />
                             Upload
                           </Button>
+                          <input
+                            id="cameraInput"
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={handlePhotoCapture}
+                          />
                         </div>
                       </>
                     )}
@@ -566,6 +694,20 @@ const FoodLog = () => {
                           <p className="text-xs text-muted-foreground">Fat</p>
                         </div>
                       </div>
+                      <div className="mb-2">
+                        <Label className="text-xs text-muted-foreground">Meal Category</Label>
+                        <Select value={mealType} onValueChange={setMealType}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Select meal type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="breakfast">Breakfast</SelectItem>
+                            <SelectItem value="lunch">Lunch</SelectItem>
+                            <SelectItem value="dinner">Dinner</SelectItem>
+                            <SelectItem value="snack">Snack</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div className="flex gap-3">
                         <Button variant="outline" className="flex-1" onClick={resetPhoto}>Retake</Button>
                         <Button className="flex-1 gap-2 hover-glow" onClick={handleLogAiFood} disabled={logging}>
@@ -596,7 +738,7 @@ const FoodLog = () => {
         </Tabs>
       </main>
 
-      <Navigation />
+      {!isModal && <Navigation />}
     </div>
   );
 };

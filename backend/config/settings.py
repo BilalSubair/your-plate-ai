@@ -1,12 +1,17 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'change-me-in-production')
+load_dotenv(BASE_DIR / '.env')
 
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'change-me-in-production')
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
+
+FATSECRET_CLIENT_ID = os.environ.get('FATSECRET_CLIENT_ID')
+FATSECRET_CLIENT_SECRET = os.environ.get('FATSECRET_CLIENT_SECRET')
 
 ALLOWED_HOSTS = ['*']
 

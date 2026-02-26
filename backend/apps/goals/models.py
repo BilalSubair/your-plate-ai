@@ -40,3 +40,19 @@ class CravingEntry(models.Model):
 
     def __str__(self):
         return f"{self.craving} ({self.intensity}/10)"
+
+class DailyTracking(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='daily_tracking')
+    date = models.DateField(auto_now_add=True)
+    water_ml = models.IntegerField(default=0)
+    steps = models.IntegerField(default=0)
+    sleep_hours = models.FloatField(default=0.0)
+    active_calories = models.IntegerField(default=0)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'date')
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"Tracking for {self.user.username} on {self.date}"

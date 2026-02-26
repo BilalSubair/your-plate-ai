@@ -105,6 +105,10 @@ export const foodApi = {
     apiFetch('/food/favorites/', { method: 'POST', body: JSON.stringify(data) }),
   deleteFavorite: (id: number) =>
     apiFetch(`/food/favorites/${id}/`, { method: 'DELETE' }),
+  searchFatSecret: (query: string) =>
+    apiFetch(`/food/fatsecret/search/?q=${encodeURIComponent(query)}`),
+  analyzeIngredients: (imageBase64: string) =>
+    apiFetch('/food/analyze-ingredients/', { method: 'POST', body: JSON.stringify({ imageBase64 }) }),
 };
 
 // Supplements API
@@ -125,4 +129,7 @@ export const goalsApi = {
   getCravings: () => apiFetch('/goals/cravings/'),
   logCraving: (data: Record<string, unknown>) =>
     apiFetch('/goals/cravings/', { method: 'POST', body: JSON.stringify(data) }),
+  getDailyTracking: () => apiFetch('/goals/tracking/today/'),
+  updateDailyTracking: (data: Record<string, unknown>) =>
+    apiFetch('/goals/tracking/today/', { method: 'PATCH', body: JSON.stringify(data) }),
 };

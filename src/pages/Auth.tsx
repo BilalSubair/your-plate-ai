@@ -13,6 +13,7 @@ const Auth = () => {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login, register } = useAuth();
@@ -22,14 +23,21 @@ const Auth = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) return;
-    if (!isLogin && !email.trim()) return;
+
+    if (!isLogin) {
+      if (!email.trim()) return;
+      if (password !== confirmPassword) {
+        toast({ title: "Passwords do not match", description: "Please ensure both password fields match.", variant: "destructive" });
+        return;
+      }
+    }
 
     setLoading(true);
     try {
       if (isLogin) {
-        await login(username, password);
+        await login(username.trim(), password);
       } else {
-        await register(username, email, password);
+        await register(username.trim(), email.trim(), password);
       }
       toast({ title: isLogin ? "Welcome back!" : "Account created!", description: "Redirecting..." });
       navigate("/");
@@ -67,7 +75,7 @@ const Auth = () => {
                   id="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter username"
+                  placeholder="Enter your username"
                   required
                   autoComplete="username"
                 />
@@ -111,6 +119,24 @@ const Auth = () => {
                 </div>
               </div>
 
+              {!isLogin && (
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm your password"
+                      required
+                      minLength={8}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+              )}
+
               <Button type="submit" className="w-full" size="lg" disabled={loading}>
                 {loading ? (
                   <span className="animate-pulse-soft">Please wait...</span>
@@ -124,7 +150,7 @@ const Auth = () => {
 
             <div className="mt-6 text-center">
               <button
-                onClick={() => { setIsLogin(!isLogin); setEmail(""); }}
+                onClick={() => { setIsLogin(!isLogin); setEmail(""); setConfirmPassword(""); }}
                 className="text-sm text-muted-foreground hover:text-primary transition-colors"
               >
                 {isLogin ? "Don't have an account? " : "Already have an account? "}

@@ -12,6 +12,12 @@ import { NutritionBar } from "@/components/NutritionBar";
 import { AlternativeCard } from "@/components/AlternativeCard";
 import { fetchProductByBarcode, ProductData, getHealthierAlternatives } from "@/lib/openFoodFacts";
 import { analyzeIngredients, calculateHealthScore, getNutrientLevel } from "@/lib/ingredientAnalyzer";
+
+export interface IngredientInfo {
+  name: string;
+  healthImpact: "healthy" | "neutral" | "harmful";
+  reason: string;
+}
 import {
   Camera,
   ScanLine,
@@ -26,13 +32,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-type ScanState = "idle" | "scanning" | "loading" | "result" | "error" | "manual";
+type ScanState = "idle" | "scanning" | "loading" | "result" | "error" | "manual" | "ocr_extracting" | "ai_analyzing" | "ai_result";
 
 const Scanner = () => {
   const navigate = useNavigate();
   const [scanState, setScanState] = useState<ScanState>("idle");
   const [product, setProduct] = useState<ProductData | null>(null);
   const [manualBarcode, setManualBarcode] = useState("");
+  const [aiIngredients, setAiIngredients] = useState<IngredientInfo[]>([]);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -77,10 +84,10 @@ const Scanner = () => {
 
   const lookupProduct = async (barcode: string) => {
     setScanState("loading");
-    
+
     try {
       const productData = await fetchProductByBarcode(barcode);
-      
+
       if (productData) {
         setProduct(productData);
         setScanState("result");
@@ -106,6 +113,44 @@ const Scanner = () => {
     setProduct(null);
     setManualBarcode("");
     setScanState("idle");
+    setAiIngredients([]);
+  };
+
+  const handleLabelOCR = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setScanState("ocr_extracting");
+    toast.info("Extracting text and analyzing ingredients...");
+
+    try {
+      const { foodApi } = await import("@/lib/api");
+
+      // Convert File to Base64 String
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+      });
+
+      const res = await foodApi.analyzeIngredients(base64Data);
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to analyze ingredients");
+      }
+
+      const ingredients = await res.json();
+      setAiIngredients(ingredients);
+      setScanState("ai_result");
+      toast.success("Analysis complete!");
+
+    } catch (error: any) {
+      console.error("OCR/AI Error:", error);
+      toast.error(error?.message || "Error analyzing label. Please try a clearer photo.");
+      setScanState("idle");
+    }
   };
 
   useEffect(() => {
@@ -120,15 +165,15 @@ const Scanner = () => {
 
   const healthScore = product
     ? calculateHealthScore(
-        {
-          sugars: product.nutrients.sugars,
-          saturatedFat: product.nutrients.saturatedFat,
-          sodium: product.nutrients.sodium,
-          fiber: product.nutrients.fiber,
-          protein: product.nutrients.protein,
-        },
-        analyzedIngredients
-      )
+      {
+        sugars: product.nutrients.sugars,
+        saturatedFat: product.nutrients.saturatedFat,
+        sodium: product.nutrients.sodium,
+        fiber: product.nutrients.fiber,
+        protein: product.nutrients.protein,
+      },
+      analyzedIngredients
+    )
     : 0;
 
   const alternatives = product ? getHealthierAlternatives(product) : [];
@@ -160,20 +205,41 @@ const Scanner = () => {
               </p>
             </div>
 
-            <div className="grid gap-4 max-w-md mx-auto">
-              <Button 
-                size="lg" 
-                className="w-full animate-slide-up stagger-2 hover-glow group" 
+            <div className="grid gap-3 max-w-md mx-auto">
+              <Button
+                size="lg"
+                className="w-full animate-slide-up stagger-2 hover-glow group bg-accent text-accent-foreground"
                 style={{ animationFillMode: 'both' }}
-                onClick={startScanner}
+                onClick={() => document.getElementById('label-camera-input')?.click()}
               >
                 <Camera className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-                Scan Barcode with Camera
+                Scan Ingredients Label (AI)
               </Button>
+              <p className="text-xs text-center text-muted-foreground mb-2 mt-[-0.5rem] animate-slide-up stagger-2" style={{ animationFillMode: 'both' }}>
+                Tip: For best results, take a clear, close-up photo of <strong>only</strong> the ingredient list.
+              </p>
+              <input
+                id="label-camera-input"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLabelOCR}
+                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
+              />
               <Button
                 size="lg"
                 variant="outline"
-                className="w-full animate-slide-up stagger-3 hover-lift"
+                className="w-full animate-slide-up stagger-3 hover-lift group"
+                style={{ animationFillMode: 'both' }}
+                onClick={startScanner}
+              >
+                <ScanLine className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+                Scan Product Barcode
+              </Button>
+              <Button
+                size="lg"
+                variant="ghost"
+                className="w-full animate-slide-up stagger-4 hover-lift"
                 style={{ animationFillMode: 'both' }}
                 onClick={() => setScanState("manual")}
               >
@@ -266,22 +332,22 @@ const Scanner = () => {
                 <div className="absolute inset-0 pointer-events-none">
                   {/* Darkened overlay outside scan area */}
                   <div className="absolute inset-0 bg-foreground/40" />
-                  
+
                   <div className="absolute inset-0 flex items-center justify-center">
                     {/* Clear scan window */}
                     <div className="w-64 h-40 relative">
                       {/* Clear background for scan area */}
                       <div className="absolute inset-0 bg-background/0 backdrop-blur-0" style={{ clipPath: 'inset(0)' }} />
-                      
+
                       {/* Border with glow */}
                       <div className="absolute inset-0 border-2 border-primary rounded-lg shadow-glow" />
-                      
+
                       {/* Animated corner brackets */}
                       <div className="absolute top-0 left-0 w-6 h-6 border-t-3 border-l-3 border-primary -translate-x-0.5 -translate-y-0.5 animate-corner-pulse" style={{ borderWidth: '3px' }} />
                       <div className="absolute top-0 right-0 w-6 h-6 border-t-3 border-r-3 border-primary translate-x-0.5 -translate-y-0.5 animate-corner-pulse stagger-1" style={{ borderWidth: '3px', animationDelay: '0.2s' }} />
                       <div className="absolute bottom-0 left-0 w-6 h-6 border-b-3 border-l-3 border-primary -translate-x-0.5 translate-y-0.5 animate-corner-pulse stagger-2" style={{ borderWidth: '3px', animationDelay: '0.4s' }} />
                       <div className="absolute bottom-0 right-0 w-6 h-6 border-b-3 border-r-3 border-primary translate-x-0.5 translate-y-0.5 animate-corner-pulse stagger-3" style={{ borderWidth: '3px', animationDelay: '0.6s' }} />
-                      
+
                       {/* Scanning laser line */}
                       <div className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent animate-scan-line shadow-glow" />
                     </div>
@@ -384,8 +450,8 @@ const Scanner = () => {
                             ["a", "b"].includes(product.nutriscore.toLowerCase())
                               ? "healthy"
                               : ["c"].includes(product.nutriscore.toLowerCase())
-                              ? "neutral"
-                              : "harmful"
+                                ? "neutral"
+                                : "harmful"
                           }
                           label={`Nutri-Score ${product.nutriscore.toUpperCase()}`}
                           size="sm"
@@ -552,16 +618,86 @@ const Scanner = () => {
             </Card>
 
             {/* Scan Another */}
-            <Button 
-              onClick={resetScanner} 
-              variant="outline" 
-              className="w-full hover-glow group animate-slide-up stagger-5" 
+            <Button
+              onClick={resetScanner}
+              variant="outline"
+              className="w-full hover-glow group animate-slide-up stagger-5"
               style={{ animationFillMode: 'both' }}
               size="lg"
             >
               <Camera className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
               Scan Another Product
             </Button>
+          </div>
+        )}
+
+        {/* OCR Extracting State */}
+        {scanState === "ocr_extracting" && (
+          <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-full border-4 border-muted animate-pulse" />
+              <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-accent border-t-transparent animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <ScanLine className="w-8 h-8 text-accent animate-pulse" />
+              </div>
+            </div>
+            <p className="text-muted-foreground mt-6 animate-pulse">Reading label text (OCR)...</p>
+          </div>
+        )}
+
+        {/* AI Analyzing State */}
+        {scanState === "ai_analyzing" && (
+          <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-full border-4 border-muted animate-pulse" />
+              <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Sparkles className="w-8 h-8 text-primary animate-pulse" />
+              </div>
+            </div>
+            <p className="text-muted-foreground mt-6 animate-pulse">Groq AI is analyzing ingredients...</p>
+          </div>
+        )}
+
+        {/* AI Result State */}
+        {scanState === "ai_result" && (
+          <div className="space-y-6 animate-fade-in">
+            <Card variant="elevated" className="animate-bounce-in overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Sparkles className="w-6 h-6 text-primary" />
+                  AI Ingredient Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                  {aiIngredients.map((ingredient, index) => (
+                    <div key={index} className="animate-scale-in" style={{ animationDelay: `${0.1 + index * 0.05}s`, animationFillMode: 'both' }}>
+                      <IngredientCard
+                        name={ingredient.name}
+                        level={ingredient.healthImpact === "harmful" ? "high" : ingredient.healthImpact === "neutral" ? "moderate" : "low"}
+                        description={ingredient.reason}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {aiIngredients.length === 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No recognizable ingredients found in the text.</p>
+                  </div>
+                )}
+
+                <Button
+                  onClick={resetScanner}
+                  className="w-full mt-6 gap-2"
+                  size="lg"
+                >
+                  <ScanLine className="w-5 h-5" />
+                  Scan Another Label
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         )}
       </main>

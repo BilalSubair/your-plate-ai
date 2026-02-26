@@ -346,11 +346,10 @@ const Supplements = () => {
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                selectedCategory === cat
-                  ? "gradient-primary text-primary-foreground shadow-elevated"
-                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-              }`}
+              className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all ${selectedCategory === cat
+                ? "gradient-primary text-primary-foreground shadow-elevated"
+                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                }`}
             >
               {cat}
             </button>
@@ -360,15 +359,56 @@ const Supplements = () => {
         {/* Results */}
         <div className="space-y-3">
           {filtered.length === 0 && (
-            <Card variant="glass" className="p-8 text-center">
+            <Card variant="glass" className="p-8 text-center bg-card shadow-elevated">
               <FlaskConical className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground font-medium">No supplements found</p>
-              <p className="text-sm text-muted-foreground/70 mt-1">Try a different search term</p>
+              <p className="text-foreground font-medium mb-1">No supplements found</p>
+              <p className="text-sm text-muted-foreground mb-4">Would you like AI to research "{search}" for you?</p>
+              <Button
+                onClick={async () => {
+                  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+                  if (!apiKey) {
+                    toast.error("API Key missing");
+                    return;
+                  }
+                  toast.loading(`AI is researching ${search}...`);
+                  try {
+                    const { researchSupplementWithGroq } = await import("@/lib/aiAnalyzer");
+                    const aiSupplement = await researchSupplementWithGroq(search, apiKey);
+                    const newEntry: Supplement = {
+                      id: `ai-${Date.now()}`,
+                      name: aiSupplement.name,
+                      category: aiSupplement.category,
+                      icon: categoryIconMap[aiSupplement.category] || Pill,
+                      rating: aiSupplement.rating || 0,
+                      reviewCount: aiSupplement.reviewCount || 0,
+                      evidenceLevel: aiSupplement.evidenceLevel as any,
+                      benefits: aiSupplement.benefits,
+                      risks: aiSupplement.risks,
+                      dosage: aiSupplement.dosage,
+                      description: aiSupplement.description,
+                      interactions: aiSupplement.interactions,
+                      reviews: []
+                    };
+                    setSupplements([newEntry, ...supplements]);
+                    setSelectedSupplement(newEntry);
+                    toast.dismiss();
+                    toast.success("AI Research Complete!");
+                  } catch (err) {
+                    console.error(err);
+                    toast.dismiss();
+                    toast.error("AI couldn't find information on this supplement.");
+                  }
+                }}
+                className="gap-2"
+              >
+                <Zap className="w-4 h-4" />
+                Ask AI to Research
+              </Button>
             </Card>
           )}
 
           {filtered.map((s) => {
-            const evidence = evidenceConfig[s.evidenceLevel];
+            const evidence = evidenceConfig[s.evidenceLevel] || evidenceConfig.limited;
             const Icon = s.icon;
             return (
               <Card

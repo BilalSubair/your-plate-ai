@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import NutritionGoal, CravingEntry
+from .models import NutritionGoal, CravingEntry, DailyTracking
 
 
 class NutritionGoalSerializer(serializers.ModelSerializer):
@@ -14,3 +14,10 @@ class CravingEntrySerializer(serializers.ModelSerializer):
         model = CravingEntry
         fields = '__all__'
         read_only_fields = ('user', 'logged_at')
+
+
+class DailyTrackingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DailyTracking
+        fields = '__all__'
+        read_only_fields = ('user', 'date', 'last_updated')

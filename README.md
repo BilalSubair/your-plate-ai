@@ -1,73 +1,34 @@
-# Welcome to your Lovable project
+# Your Plate AI
 
-## Project info
+Welcome to **Your Plate AI**, an intelligent full-stack nutrition tracking, smart receipt-scanning, and calorie calculation application. 
+This service provides dynamic AI-assisted tools for building Indian diets, generating smart calorie substitutions, searching clinical supplement data, and tracking daily macros accurately.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Key Features
 
-## How can I edit this code?
+- **AI Log Scanner**: Upload a nutrition label and automatically parse accurate Calories, Protein, Carbs, and Fats using Google Cloud Vision and Llama-3 parsing directly into your custom Dashboard.
+- **Smart Custom Substitutions**: Craving pizza? The AI handles calorie swaps, returning 3 Indian-inspired healthy alternatives that fit your macros seamlessly.
+- **AI Supplement Researcher**: Tap into extensive compound research including real-time estimated verification ratings, clinical pros and cons, and drug interaction warnings for both generic and branded supplements like MuscleBlaze Whey.
+- **Offline Backend**: Fully offline tracking and dynamic target tracking ensuring accurate Dashboard rings that never lose parity with Django.
 
-There are several ways of editing your application.
+## Tech Stack
+- **Frontend**: Vite, React (TypeScript), Tailwind CSS, Shadcn-UI
+- **Backend**: Django & Django REST Framework
+- **AI Tooling**: Groq API (Llama-3-8B), Google Cloud Vision
 
-**Use Lovable**
+## Local Setup
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+Ensure that you have Node.js and Python installed. This project requires env configurations for Groq and Google Application Credentials.
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
+### Frontend
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### Backend (Django)
+```sh
+cd backend
+source venv/bin/activate
+pip install -r requirements.txt
+python manage.py runserver
+```

@@ -173,6 +173,13 @@ const Goals = () => {
     setGoals(newGoals);
 
     setSaving(true);
+    let mappedActivityLevel = "moderate";
+    if (activityLevel <= 1.2) mappedActivityLevel = "sedentary";
+    else if (activityLevel <= 1.375) mappedActivityLevel = "light";
+    else if (activityLevel <= 1.55) mappedActivityLevel = "moderate";
+    else if (activityLevel <= 1.725) mappedActivityLevel = "active";
+    else mappedActivityLevel = "extreme";
+
     try {
       const res = await goalsApi.updateGoals({
         daily_calories: newGoals.calories,
@@ -181,7 +188,7 @@ const Goals = () => {
         daily_fat: newGoals.fat,
         current_weight: currentWeight,
         target_weight: targetWeight,
-        activity_level: activityLevel,
+        activity_level: mappedActivityLevel,
         weekly_target: weeklyTarget,
       });
       if (res.ok) {

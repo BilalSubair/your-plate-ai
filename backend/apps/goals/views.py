@@ -1,7 +1,8 @@
 from rest_framework import viewsets, generics
 from rest_framework.response import Response
-from .models import NutritionGoal, CravingEntry
-from .serializers import NutritionGoalSerializer, CravingEntrySerializer
+from django.utils import timezone
+from .models import NutritionGoal, CravingEntry, DailyTracking
+from .serializers import NutritionGoalSerializer, CravingEntrySerializer, DailyTrackingSerializer
 
 
 class NutritionGoalView(generics.RetrieveUpdateAPIView):
@@ -23,4 +24,16 @@ class CravingViewSet(viewsets.ModelViewSet):
         return CravingEntry.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class DailyTrackingView(generics.RetrieveUpdateAPIView):
+    serializer_class = DailyTrackingSerializer
+
+    def get_object(self):
+        today = timezone.now().date()
+        obj, _ = DailyTracking.objects.get_or_create(user=self.request.user, date=today)
+        return obj
+
+    def perform_update(self, serializer):
         serializer.save(user=self.request.user)

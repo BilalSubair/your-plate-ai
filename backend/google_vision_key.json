@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "nutriguide-488517",
+  "private_key_id": "7d301f4b9fefd324b901f1e1a5e429cf30a70e85",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDWbyW8R1sOuTIE\nnkOEmNXjRMSO4fHEiA2M9A13VkRWuK/9IMX9UvMmYfClu8EI+UQyeci4ssPp2vAA\nsuV6yENT1lNGTe63DSRGilfQqjS9X3KPDdMZOWBsse+MiGe3ENt3SfWk0whzOI+d\npU/qvE0aPe3yEKULdZHR9yOJgDFwk/uScpAxqhw3wdN60Blw4WktRnH2kPJmNYHh\nt6rRUcSc8YXv+x+p9GFSINn7zDLT8sdbmDffv3TwS+WIywHs3giM9/WFLx4SZUXZ\nkaxx91v4ikayj2yUo7FXR+4Rhpd2Rpek3sq/1f+kNPj2K9cMg/dfLnw4Iw2uzVkL\nXw27XT8pAgMBAAECggEADCBIORRjEXsm2U8CIt3zIwp+tsKhxcIGbiUOri0De5n4\nO4Gecu4Y2YRzoW8YJsz5N85ePhZ2cL75IoIf6wPwTZub7l9/aiC7w+wCIkbje53A\nhOlzcF/w5qAWwC44iPXlAiL9WYO3AWa+fqUTMjoax4ZVu5Rjz8tL4qXSWyS4eUvX\nFnIHAcXc6t7ZxgyQE4fjZuBx4G7/AcSH/KDl79PZMebFI3j1nwr4nF8ehAYOexRw\naJKgVVue1NQmJA1ruZjuqn8CbXAAA079ssGnOUEUnu9NqOeSu7oFEsB+pFJ2eQNk\ntnbJE4USj+LZ6ZB3AmjzBN4fEz/faVfnA4x5t/+2DwKBgQDxAafOU2VuM2e/6C4o\n70vwvUMJjvVASs3m+wQW9GF5xECLf5dRVFyq+7jlNUEBMceIfFlRPS+Y86o8uxJj\n7EU39xtNgCjQpN27Lf2Rjl04P+eDs25Q0F9XhUDPnRGmabBzZx+IA5S0ioqaF/1Y\nwcPqCVOqBQjsfFFqDqMvEr8PvwKBgQDjxksN3Y6RYPlSI0OWiIsRv3TIgy2goyah\nrKQskbcPvV/OdJtJgt7R9YBfVHmLcT/Ahs52OFiiiftTrapsNQ8dF4KWMmC+8o3w\nyqh6ldJJfqqqE1FjTHULHUlC8IoVRrLJmU/sJb+NrCgcxejxlA6s2BjxpyDfiRpw\nG7DBNuJrFwKBgE+URFyUnQFuZ+uuNs+9dE3hsKkPU1wPVz3V1NvfhfA3JTjqwIRS\nXub2h27nzrceQMyIgtWYZocSrjuvabsk4RZBufo1P0Tlq3GLFhdh8tYIA+Iw9VQp\n+dFkZqonKxTQATuZ6Yd35zpWJL4M/dK46H/25HFXiELOKfPjMW7xubTxAoGAIrzc\nN3ohwyRCAffk1/FtHEDRw77V15jqTF/zDeUPQTRFh0wbXsO5zdWeRWuxucWEzo0A\nseD4C5n1nZZv1l7lNi+et99pB9YgNagCt+dfkdvilVuq3vULKK3HvZDHzmTg4YQj\nP0WmiCnIWFMKqsVE07GFZF1z0wOq54whkeYX8/MCgYA9688nRssKOMPUa5VLJScT\nRdyjioFrdJOf29oSd0vxZpqWlsQw5RgvglVbYmHoBpCJ1Ka0zHURFeEi9cuxFobk\naQTGraz5L2HWodV1N/VTyMcUYovyqfaNK1KsFMEMEhxOAgURwiem+Gp5GxDUpsWr\nocD3PlRey8+2AE0G31eVSA==\n-----END PRIVATE KEY-----\n",
+  "client_email": "vision-backend@nutriguide-488517.iam.gserviceaccount.com",
+  "client_id": "110978086721987350858",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/vision-backend%40nutriguide-488517.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
