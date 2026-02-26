@@ -13,7 +13,8 @@ import re
 from rest_framework.exceptions import ValidationError
 from .models import FoodEntry, FavoriteFood
 from .serializers import FoodEntrySerializer, FavoriteFoodSerializer
-from .ai_utils import decode_and_validate_image, extract_text_with_vision, clean_ingredients_text, classify_with_groq
+from .ai_utils import decode_and_validate_image, classify_with_groq
+from .ocr_utils import extract_text_with_paddle, clean_ingredients_text
 
 
 class FoodEntryViewSet(viewsets.ModelViewSet):
@@ -156,8 +157,8 @@ class AnalyzeIngredientsView(APIView):
             # 1. Decode and Validate image
             image_bytes = decode_and_validate_image(image_base64)
             
-            # 2. Extract Text with Google Vision
-            raw_text = extract_text_with_vision(image_bytes)
+            # 2. Extract Text with Local PaddleOCR
+            raw_text = extract_text_with_paddle(image_bytes)
             
             if not raw_text.strip():
                 return Response({"error": "No text detected in the image. Please try a clearer photo."}, status=status.HTTP_400_BAD_REQUEST)
@@ -165,15 +166,19 @@ class AnalyzeIngredientsView(APIView):
             # 3. Clean Text
             cleaned_text = clean_ingredients_text(raw_text)
             
-            # 4. Classify with Groq
-            ingredients = classify_with_groq(cleaned_text)
+            # 4. Classify with Groq (Strict JSON output)
+            ingredients_data = classify_with_groq(cleaned_text)
             
-            return Response(ingredients)
+            # Return payload formatted for frontend usage
+            return Response({
+                "success": True,
+                **ingredients_data
+            })
             
         except ValidationError as ve:
             return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            # Return 500 for external API failures or unexpected server errors
+            # Return 500 for OCR failures or unexpected server errors
             import traceback
             traceback.print_exc()
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": "Failed to analyze ingredients. " + str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

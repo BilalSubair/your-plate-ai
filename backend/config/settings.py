@@ -12,6 +12,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
 FATSECRET_CLIENT_ID = os.environ.get('FATSECRET_CLIENT_ID')
 FATSECRET_CLIENT_SECRET = os.environ.get('FATSECRET_CLIENT_SECRET')
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 
 ALLOWED_HOSTS = ['*']
 
