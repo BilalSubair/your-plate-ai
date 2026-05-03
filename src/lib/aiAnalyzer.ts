@@ -40,7 +40,7 @@ ${ocrText}
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "llama-3.1-8b-instant",
+                model: "llama-3.3-70b-versatile",
                 messages: [
                     { role: "system", content: "You are a helpful JSON API." },
                     { role: "user", content: prompt }
@@ -127,7 +127,7 @@ Each object must have the following exact keys and types:
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "llama-3.1-8b-instant",
+                model: "llama-3.3-70b-versatile",
                 messages: [
                     { role: "system", content: "You are a helpful JSON API." },
                     { role: "user", content: prompt }
@@ -183,7 +183,7 @@ The object must have the following exact keys and types:
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "llama-3.1-8b-instant",
+                model: "llama-3.3-70b-versatile",
                 messages: [
                     { role: "system", content: "You are a helpful JSON API." },
                     { role: "user", content: prompt }
@@ -240,7 +240,7 @@ Each object must have the following exact keys and types:
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "llama-3.1-8b-instant",
+                model: "llama-3.3-70b-versatile",
                 messages: [
                     { role: "system", content: "You are a helpful JSON API." },
                     { role: "user", content: prompt }

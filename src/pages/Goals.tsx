@@ -10,8 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { CircularProgress } from "@/components/CircularProgress";
-import { 
-  Target, 
+import {
+  Target,
   Sparkles,
   TrendingUp,
   TrendingDown,
@@ -77,23 +77,42 @@ const Goals = () => {
   const [cravingStrategy, setCravingStrategy] = useState<string | null>(null);
   const [autoAdjust, setAutoAdjust] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isCalculatingAI, setIsCalculatingAI] = useState(false);
   const [cravingLogs, setCravingLogs] = useState<CravingLog[]>([]);
+  const [bankedCalories, setBankedCalories] = useState(0);
+  const [dailyAllowance, setDailyAllowance] = useState(0);
+
+  const fetchCravingsAndBank = async () => {
+    try {
+      const [resCravings, resBank] = await Promise.all([
+        goalsApi.getCravings(),
+        goalsApi.getCravingsBank()
+      ]);
+      if (resCravings.ok) {
+        const data = await resCravings.json();
+        setCravingLogs(Array.isArray(data) ? data : data.results || []);
+      }
+      if (resBank.ok) {
+        const data = await resBank.json();
+        setBankedCalories(data.banked_calories || 0);
+        setDailyAllowance(data.daily_allowance || 0);
+      }
+    } catch { }
+  };
 
   useEffect(() => {
-    const fetchCravings = async () => {
-      try {
-        const res = await goalsApi.getCravings();
-        if (res.ok) {
-          const data = await res.json();
-          setCravingLogs(Array.isArray(data) ? data : data.results || []);
-        }
-      } catch {}
-    };
-    fetchCravings();
+    fetchCravingsAndBank();
   }, []);
 
   const handleLogCraving = async (craving: Craving) => {
     try {
+      // Consume cheat calories from bank
+      await goalsApi.consumeCheatMeal({
+        name: craving.name,
+        calories: craving.calories
+      });
+      fetchCravingsAndBank();
+
       const res = await goalsApi.logCraving({
         craving: craving.name,
         intensity: 5,
@@ -136,7 +155,17 @@ const Goals = () => {
             });
             if (data.current_weight) setCurrentWeight(data.current_weight);
             if (data.target_weight) setTargetWeight(data.target_weight);
-            if (data.activity_level) setActivityLevel(data.activity_level);
+            if (data.activity_level) {
+              let multiplier = 1.55;
+              switch (data.activity_level) {
+                case 'sedentary': multiplier = 1.2; break;
+                case 'light': multiplier = 1.375; break;
+                case 'moderate': multiplier = 1.55; break;
+                case 'active': multiplier = 1.725; break;
+                case 'extreme': multiplier = 1.9; break;
+              }
+              setActivityLevel(multiplier);
+            }
             if (data.weekly_target) setWeeklyTarget(data.weekly_target);
           }
         }
@@ -197,9 +226,37 @@ const Goals = () => {
         toast.success("Goals updated locally!");
       }
     } catch {
-      toast.success("Goals updated locally!");
+      toast.error("Failed to update goals.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAiRecalibrate = async () => {
+    setIsCalculatingAI(true);
+    try {
+      const res = await goalsApi.calculateMaintenance();
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        toast.success(`ML Engine isolated your baseline at ${data.maintenance_calories} kcal using ${data.data_points_used} days of data!`);
+        // We can update the TDEE math locally or force a refresh. For now, we'll fetch newest goals.
+        const goalsRes = await goalsApi.getGoals();
+        if (goalsRes.ok) {
+          const newGoals = await goalsRes.json();
+          if (newGoals.maintenance_calories) {
+            setGoals((prev) => ({
+              ...prev,
+              calories: newGoals.daily_calories || prev.calories
+            }));
+          }
+        }
+      } else {
+        toast.error(data.message || "Insufficient data for ML Regression (Needs 21 days min).");
+      }
+    } catch {
+      toast.error("Failed to reach Neural Regressor.");
+    } finally {
+      setIsCalculatingAI(false);
     }
   };
 
@@ -216,7 +273,7 @@ const Goals = () => {
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-8">
       <Header />
-      
+
       <main className="container px-4 py-6 space-y-6">
         <section className="animate-slide-up">
           <h1 className="text-2xl font-bold text-foreground">Goals & Planning</h1>
@@ -231,7 +288,7 @@ const Goals = () => {
             </TabsTrigger>
             <TabsTrigger value="cravings" className="gap-2">
               <IceCream className="w-4 h-4" />
-              Cravings
+              Cravings Bank
             </TabsTrigger>
           </TabsList>
 
@@ -260,7 +317,7 @@ const Goals = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-xs text-muted-foreground">Current Weight</Label>
-                    <Input 
+                    <Input
                       type="number"
                       value={currentWeight}
                       onChange={(e) => setCurrentWeight(parseFloat(e.target.value))}
@@ -269,7 +326,7 @@ const Goals = () => {
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Target Weight</Label>
-                    <Input 
+                    <Input
                       type="number"
                       value={targetWeight}
                       onChange={(e) => setTargetWeight(parseFloat(e.target.value))}
@@ -328,11 +385,10 @@ const Goals = () => {
                     <button
                       key={level.value}
                       onClick={() => setActivityLevel(level.value)}
-                      className={`p-3 rounded-lg border text-left transition-all ${
-                        activityLevel === level.value
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border hover:border-primary/50'
-                      }`}
+                      className={`p-3 rounded-lg border text-left transition-all ${activityLevel === level.value
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                        }`}
                     >
                       <p className="font-medium text-foreground text-sm">{level.label}</p>
                       <p className="text-xs text-muted-foreground">{level.desc}</p>
@@ -346,8 +402,10 @@ const Goals = () => {
                     <p className="text-xs text-muted-foreground">TDEE (kcal)</p>
                   </div>
                   <div className="p-3 rounded-lg bg-primary/10 text-center">
-                    <p className="text-2xl font-bold text-primary">{goals.calories}</p>
-                    <p className="text-xs text-muted-foreground">Daily Target</p>
+                    <p className="text-2xl font-bold text-primary">
+                      {goals.calories - dailyAllowance}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Budget (Daily Target - Bank)</p>
                   </div>
                 </div>
               </CardContent>
@@ -370,18 +428,21 @@ const Goals = () => {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Calories</Label>
-                    <Input 
+                    <Label className="text-xs text-muted-foreground">Total Daily Calories</Label>
+                    <Input
                       type="number"
                       value={goals.calories}
                       onChange={(e) => setGoals({ ...goals, calories: parseInt(e.target.value) })}
                       className="mt-1"
                       disabled={autoAdjust}
                     />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Effective Budget: {goals.calories - dailyAllowance} kcal (Allowance blocked)
+                    </p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Protein (g)</Label>
-                    <Input 
+                    <Input
                       type="number"
                       value={goals.protein}
                       onChange={(e) => setGoals({ ...goals, protein: parseInt(e.target.value) })}
@@ -391,7 +452,7 @@ const Goals = () => {
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Carbs (g)</Label>
-                    <Input 
+                    <Input
                       type="number"
                       value={goals.carbs}
                       onChange={(e) => setGoals({ ...goals, carbs: parseInt(e.target.value) })}
@@ -401,7 +462,7 @@ const Goals = () => {
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Fat (g)</Label>
-                    <Input 
+                    <Input
                       type="number"
                       value={goals.fat}
                       onChange={(e) => setGoals({ ...goals, fat: parseInt(e.target.value) })}
@@ -411,9 +472,12 @@ const Goals = () => {
                   </div>
                 </div>
 
-                <Button onClick={handleRecalculate} disabled={saving} className="w-full gap-2 hover-glow">
-                  <RefreshCw className={`w-4 h-4 ${saving ? 'animate-spin' : ''}`} />
-                  {saving ? "Saving..." : "Recalculate & Save"}
+                <Button className="w-full" onClick={handleRecalculate} disabled={saving}>
+                  {saving ? "Updating..." : "Recalculate Profile"}
+                </Button>
+                <Button variant="secondary" className="w-full gap-2 border border-primary/20" onClick={handleAiRecalibrate} disabled={isCalculatingAI}>
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  {isCalculatingAI ? "Synthesizing..." : "AI Adaptive Calibration"}
                 </Button>
               </CardContent>
             </Card>
@@ -426,7 +490,7 @@ const Goals = () => {
                   <div>
                     <h4 className="font-medium text-foreground">Smart Weekly Adjustments</h4>
                     <p className="text-sm text-muted-foreground mt-1">
-                      NutriGuide will automatically adjust your targets each week based on your progress, 
+                      NutriGuide will automatically adjust your targets each week based on your progress,
                       ensuring sustainable weight loss without plateaus.
                     </p>
                   </div>
@@ -444,7 +508,7 @@ const Goals = () => {
                   <div>
                     <h4 className="font-medium text-foreground">Smart Craving Management</h4>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Don't fight your cravings — plan for them! Select a craving to see how you can 
+                      Don't fight your cravings — plan for them! Select a craving to see how you can
                       incorporate it into your diet without derailing your goals.
                     </p>
                   </div>
@@ -459,11 +523,10 @@ const Goals = () => {
                 {defaultCravings.map((craving, index) => {
                   const Icon = craving.icon;
                   return (
-                    <Card 
+                    <Card
                       key={craving.name}
-                      className={`hover-lift cursor-pointer transition-all animate-slide-up ${
-                        selectedCraving?.name === craving.name ? 'ring-2 ring-primary' : ''
-                      }`}
+                      className={`hover-lift cursor-pointer transition-all animate-slide-up ${selectedCraving?.name === craving.name ? 'ring-2 ring-primary' : ''
+                        }`}
                       style={{ animationDelay: `${index * 0.1}s` }}
                       onClick={() => handleCravingStrategy(craving)}
                     >
@@ -496,14 +559,14 @@ const Goals = () => {
                   <p className="text-sm text-muted-foreground whitespace-pre-line">
                     {cravingStrategy}
                   </p>
-                  
+
                   <div className="p-3 rounded-lg bg-success/10 border border-success/20">
                     <div className="flex items-center gap-2 mb-2">
                       <Check className="w-4 h-4 text-success" />
                       <span className="font-medium text-foreground">Best Strategy</span>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Plan your {selectedCraving.name} for after your workout. You'll enjoy it more and 
+                      Plan your {selectedCraving.name} for after your workout. You'll enjoy it more and
                       offset the calories with your activity!
                     </p>
                   </div>
@@ -545,26 +608,54 @@ const Goals = () => {
               </Card>
             )}
 
-            {/* Daily Budget */}
-            <Card variant="elevated">
+            {/* Cravings Bank (Smart Cravings) */}
+            <Card variant="elevated" className="border-accent/40 bg-accent/5">
               <CardHeader>
-                <CardTitle className="text-lg">Today's Treat Budget</CardTitle>
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <span>Cravings Bank</span>
+                  <Badge variant="outline" className="bg-background shadow-xs">Saved up treats!</Badge>
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-center mb-4">
-                  <CircularProgress
-                    value={120}
-                    max={200}
-                    size={140}
-                    strokeWidth={12}
-                    variant="accent"
-                  >
-                    <span className="text-2xl font-bold text-foreground">80</span>
-                    <span className="text-xs text-muted-foreground">kcal left</span>
-                  </CircularProgress>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Daily Allowance (kcal)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      type="number" 
+                      value={dailyAllowance} 
+                      onChange={(e) => setDailyAllowance(parseInt(e.target.value) || 0)}
+                      className="w-24 border-accent focus-visible:ring-accent"
+                    />
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="hover:bg-accent hover:text-white"
+                      onClick={async () => {
+                        try {
+                          await goalsApi.patchGoals({ daily_cheat_allowance: dailyAllowance });
+                          toast.success("Allowance updated!");
+                          fetchCravingsAndBank();
+                        } catch { toast.error("Failed to update"); }
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
                 </div>
-                <p className="text-center text-sm text-muted-foreground">
-                  You have 80 kcal of "flex calories" today for treats or unexpected snacks
+                <div className="p-4 rounded-xl bg-background border flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-accent text-accent-foreground flex flex-col items-center justify-center shrink-0">
+                    <IceCream className="w-6 h-6 mb-0.5" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Available in Bank (Last 30 days)</p>
+                    <p className={`text-3xl font-bold ${bankedCalories > 0 ? "text-success" : "text-destructive"}`}>
+                      {bankedCalories} <span className="text-sm font-normal text-muted-foreground">kcal</span>
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Unused daily cheat calories accumulate here automatically. 
+                  When you log a craving from the buttons above, the calories are deducted from this bank!
                 </p>
               </CardContent>
             </Card>

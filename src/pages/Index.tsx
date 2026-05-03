@@ -11,9 +11,10 @@ import { QuickAction } from "@/components/QuickAction";
 import { StatsCard } from "@/components/StatsCard";
 import { FeatureCard } from "@/components/FeatureCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
+import { WeeklyReport } from "@/components/WeeklyReport";
 import FoodLog from "@/pages/FoodLog";
 import {
   Camera,
@@ -21,16 +22,29 @@ import {
   Target,
   Zap,
   Droplets,
+  Flame,
   Footprints,
   Moon,
   ScanLine,
   Search,
   Sparkles,
-  ChefHat,
   MapPin,
-  ArrowRight
+  Edit2,
+  Copy,
+  Trash2,
+  ArrowRight,
+  Scale,
+  Crosshair,
+  Bot
 } from "lucide-react";
 import { foodApi, goalsApi } from "@/lib/api";
+
+type TrackEditState = {
+  isOpen: boolean;
+  field: keyof DailyTracking | null;
+  label: string;
+  value: string;
+};
 
 interface TodayEntry {
   id: number;
@@ -62,6 +76,7 @@ interface DailyTracking {
   steps: number;
   sleep_hours: number;
   active_calories: number;
+  weight_kg?: number;
 }
 
 const getGreeting = () => {
@@ -79,10 +94,18 @@ const Index = () => {
   const [tracking, setTracking] = useState<DailyTracking>({
     water_ml: 0, steps: 0, sleep_hours: 0, active_calories: 0
   });
+  const [trackEdit, setTrackEdit] = useState<TrackEditState>({
+    isOpen: false,
+    field: null,
+    label: "",
+    value: ""
+  });
+  const [editEntry, setEditEntry] = useState<TodayEntry | null>(null);
+  const [activeMealTitle, setActiveMealTitle] = useState<string | null>(null);
   const [loggingMeal, setLoggingMeal] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [underConsumedDates, setUnderConsumedDates] = useState<Date[]>([]);
-  const [overConsumedDates, setOverConsumedDates] = useState<Date[]>([]);
+
+  const [crashPrediction, setCrashPrediction] = useState<{ risk: string, message: string, minutes: number } | null>(null);
 
   const fetchTodayLogs = async () => {
     try {
@@ -97,23 +120,40 @@ const Index = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [todayRes, goalsRes, trackingRes] = await Promise.all([
+        const [todayRes, goalsRes, trackingRes, crashRes] = await Promise.all([
           foodApi.getToday(),
           goalsApi.getGoals(),
           goalsApi.getDailyTracking(),
+          goalsApi.predictCrash(),
         ]);
+        let fetchedEntries: TodayEntry[] = [];
+        let fetchedGoals = DEFAULT_GOALS;
+        let fetchedTracking = { water_ml: 0, steps: 0, sleep_hours: 0, active_calories: 0 };
+
         if (todayRes.ok) {
           const data = await todayRes.json();
-          setEntries(Array.isArray(data) ? data : data.results || []);
+          fetchedEntries = Array.isArray(data) ? data : data.results || [];
+          setEntries(fetchedEntries);
         }
         if (goalsRes.ok) {
           const g = await goalsRes.json();
-          if (g && g.daily_calories) setGoals(g);
+          if (g && g.daily_calories) {
+            fetchedGoals = g;
+            setGoals(g);
+          }
         }
         if (trackingRes.ok) {
           const t = await trackingRes.json();
-          if (t && t.id) setTracking(t);
+          if (t && t.id) {
+            fetchedTracking = t;
+            setTracking(t);
+          }
         }
+        if (crashRes && crashRes.ok) {
+          const c = await crashRes.json();
+          setCrashPrediction(c);
+        }
+
       } catch {
         // fallback to defaults
       }
@@ -121,58 +161,83 @@ const Index = () => {
     fetchData();
   }, []);
 
-  const handleUpdateTracking = async (field: keyof DailyTracking, label: string) => {
-    const val = window.prompt(`Enter new value for ${label}:`, tracking[field].toString());
-    if (val === null) return;
-    const num = parseFloat(val);
+  const openTrackEdit = (field: keyof DailyTracking, label: string) => {
+    let currentValue = tracking[field] || 0;
+    if (field === "water_ml") {
+      currentValue = (currentValue as number) / 1000;
+      label = "Water Intake (Liters)";
+    }
+    setTrackEdit({
+      isOpen: true,
+      field,
+      label,
+      value: currentValue.toString()
+    });
+  };
+
+  const submitTrackingEdit = async () => {
+    if (!trackEdit.field) return;
+
+    let num = parseFloat(trackEdit.value);
     if (isNaN(num) || num < 0) {
-      toast("Invalid number entered");
+      toast.error("Please enter a valid amount");
       return;
     }
+
+    if (trackEdit.field === "water_ml" && trackEdit.label.includes("Liters")) {
+      num = num * 1000;
+    }
+
     try {
-      const res = await goalsApi.updateDailyTracking({ [field]: num });
+      const res = await goalsApi.updateDailyTracking({ [trackEdit.field]: num });
       if (res.ok) {
         const t = await res.json();
         setTracking(t);
-        toast(`${label} updated successfully!`);
+        toast.success(`${trackEdit.label.replace(" (Liters)", "")} updated successfully!`);
+        setTrackEdit(prev => ({ ...prev, isOpen: false }));
       } else {
-        toast("Failed to update tracking data");
+        toast.error("Failed to update tracking data");
       }
     } catch {
-      toast("Error updating tracking data");
+      toast.error("Error updating tracking data");
     }
   };
 
-  const handleOpenReport = async () => {
-    setShowReportModal(true);
+  const handleDeleteEntry = async (item: TodayEntry) => {
     try {
-      const res = await foodApi.getDailySummary(30);
+      const res = await foodApi.deleteEntry(item.id);
       if (res.ok) {
-        const history = await res.json();
-        const under: Date[] = [];
-        const over: Date[] = [];
-
-        history.forEach((day: any) => {
-          if (day.total_calories > 0) {
-            const d = new Date(day.date);
-            // Adjust offset to prevent Javascript from sliding date backwards based on local timezone
-            d.setMinutes(d.getMinutes() + d.getTimezoneOffset());
-
-            if (day.total_calories <= goals.daily_calories) {
-              under.push(d);
-            } else {
-              over.push(d);
-            }
-          }
-        });
-
-        setUnderConsumedDates(under);
-        setOverConsumedDates(over);
+        toast.success(`Removed ${item.name} from your log.`);
+        fetchTodayLogs();
+      } else {
+        toast.error("Failed to delete entry.");
       }
-    } catch (error) {
-      toast.error("Failed to load history");
+    } catch {
+      toast.error("Error deleting entry.");
     }
   };
+
+  const submitEditEntry = async () => {
+    if (!editEntry) return;
+    try {
+      const res = await foodApi.updateEntry(editEntry.id, {
+        calories: Number(editEntry.calories),
+        protein: Number(editEntry.protein),
+        carbs: Number(editEntry.carbs),
+        fat: Number(editEntry.fat)
+      });
+      if (res.ok) {
+        toast.success(`Updated macros for ${editEntry.name}!`);
+        setEditEntry(null);
+        fetchTodayLogs();
+      } else {
+        toast.error("Failed to update entry.");
+      }
+    } catch {
+      toast.error("Error updating entry.");
+    }
+  };
+
 
   const caloriesConsumed = Math.round(entries.reduce((s, e) => s + Number(e.calories || 0), 0));
   const caloriesTarget = goals.daily_calories;
@@ -182,14 +247,12 @@ const Index = () => {
   const fatConsumed = Math.round(entries.reduce((s, e) => s + Number(e.fat || 0), 0));
 
   // Group entries by meal_type for meal cards
-  const mealTypes = ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"];
+  const mealTypes = ["breakfast", "lunch", "dinner", "snack"];
   const mealLabels: Record<string, string> = {
     breakfast: "Breakfast",
-    morning_snack: "Morning Snack",
     lunch: "Lunch",
-    afternoon_snack: "Afternoon Snack",
     dinner: "Dinner",
-    snack: "Snack",
+    snack: "Snacks",
   };
 
   const meals = mealTypes.map((type) => {
@@ -197,11 +260,11 @@ const Index = () => {
     return {
       title: mealLabels[type] || type,
       time: "",
-      calories: typeEntries.reduce((s, e) => s + e.calories, 0),
-      items: typeEntries.map((e) => e.name),
+      calories: typeEntries.reduce((s, e) => s + Number(e.calories), 0),
+      items: typeEntries,
       logged: typeEntries.length > 0,
     };
-  }).filter((m) => m.logged || ["breakfast", "lunch", "dinner"].includes(m.title.toLowerCase()));
+  }).filter((m) => m.logged || ["breakfast", "lunch", "dinner", "snacks"].includes(m.title.toLowerCase()));
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-8">
@@ -217,7 +280,7 @@ const Index = () => {
               <p className="text-muted-foreground mt-1">You're on track today. Keep it up! 🌟</p>
             </div>
             <div className="hidden sm:block">
-              <Button variant="default" className="shadow-soft hover-glow transition-all" onClick={handleOpenReport}>
+              <Button variant="default" className="shadow-soft hover-glow transition-all" onClick={() => setShowReportModal(true)}>
                 View Weekly Report
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -232,7 +295,7 @@ const Index = () => {
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center justify-between">
                 <span>Today's Calories</span>
-                <span className="text-sm font-normal text-accent">{Math.round((caloriesConsumed / caloriesTarget) * 100)}%</span>
+                <span className={`text-sm font-normal ${caloriesConsumed > caloriesTarget ? "text-destructive" : caloriesConsumed === caloriesTarget ? "text-warning" : "text-accent"}`}>{Math.round((caloriesConsumed / caloriesTarget) * 100)}%</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-center">
@@ -241,7 +304,7 @@ const Index = () => {
                 max={caloriesTarget}
                 size={180}
                 strokeWidth={14}
-                variant="primary"
+                variant={caloriesConsumed > caloriesTarget ? "destructive" : caloriesConsumed === caloriesTarget ? "warning" : "primary"}
               >
                 <span className="text-3xl font-bold text-foreground">{caloriesRemaining}</span>
                 <span className="text-sm text-muted-foreground">kcal left</span>
@@ -285,8 +348,17 @@ const Index = () => {
                 variant="fat"
               />
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-border">
-                <div onClick={() => handleUpdateTracking("water_ml", "Water Intake (mL)")} className="cursor-pointer transition-all duration-300 hover:-translate-y-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-4 border-t border-border">
+                <div onClick={() => openTrackEdit("weight_kg", "Current Weight")} className="cursor-pointer transition-all duration-300 hover:-translate-y-1">
+                  <StatsCard
+                    icon={Scale}
+                    label="Weight"
+                    value={tracking.weight_kg ? tracking.weight_kg.toString() : "--"}
+                    unit="kg"
+                    trend={0}
+                  />
+                </div>
+                <div onClick={() => openTrackEdit("water_ml", "Water Intake")} className="cursor-pointer transition-all duration-300 hover:-translate-y-1 stagger-1">
                   <StatsCard
                     icon={Droplets}
                     label="Water"
@@ -295,7 +367,7 @@ const Index = () => {
                     trend={0}
                   />
                 </div>
-                <div onClick={() => handleUpdateTracking("steps", "Steps")} className="cursor-pointer transition-all duration-300 hover:-translate-y-1 stagger-1">
+                <div onClick={() => openTrackEdit("steps", "Steps")} className="cursor-pointer transition-all duration-300 hover:-translate-y-1 stagger-1">
                   <StatsCard
                     icon={Footprints}
                     label="Steps"
@@ -303,7 +375,7 @@ const Index = () => {
                     trend={0}
                   />
                 </div>
-                <div onClick={() => handleUpdateTracking("sleep_hours", "Sleep Hours")} className="cursor-pointer transition-all duration-300 hover:-translate-y-1 stagger-2">
+                <div onClick={() => openTrackEdit("sleep_hours", "Sleep Hours")} className="cursor-pointer transition-all duration-300 hover:-translate-y-1 stagger-3">
                   <StatsCard
                     icon={Moon}
                     label="Sleep"
@@ -312,7 +384,7 @@ const Index = () => {
                     trend={0}
                   />
                 </div>
-                <div onClick={() => handleUpdateTracking("active_calories", "Active Calories")} className="cursor-pointer transition-all duration-300 hover:-translate-y-1 stagger-3">
+                <div onClick={() => openTrackEdit("active_calories", "Active Calories")} className="cursor-pointer transition-all duration-300 hover:-translate-y-1 stagger-4">
                   <StatsCard
                     icon={Zap}
                     label="Active Cal"
@@ -334,7 +406,7 @@ const Index = () => {
               label="Scan Food"
               description="AI Recognition"
               variant="primary"
-              onClick={() => navigate("/log")}
+              onClick={() => navigate("/log?tab=photo", { state: { defaultTab: "photo" } })}
             />
             <QuickAction
               icon={Utensils}
@@ -349,10 +421,11 @@ const Index = () => {
               onClick={() => navigate("/scanner")}
             />
             <QuickAction
-              icon={Target}
-              label="Set Goal"
-              description="Adjust Target"
-              onClick={() => navigate("/goals")}
+              icon={Bot}
+              label="AI Coach"
+              description="Fitness Chat"
+              variant="secondary"
+              onClick={() => navigate("/ai-coach")}
             />
           </div>
         </section>
@@ -372,6 +445,7 @@ const Index = () => {
                 key={index}
                 {...meal}
                 onLog={() => setLoggingMeal(mealTypes[index])}
+                onClick={() => setActiveMealTitle(meal.title)}
                 className="hover-lift"
               />
             ))}
@@ -386,13 +460,10 @@ const Index = () => {
               icon={Sparkles}
               title="Smart Meal Planning"
               description="Get personalized meal suggestions based on your goals, preferences, and what's in your kitchen."
+              onClick={() => navigate("/meal-plan")}
               gradient
             />
-            <FeatureCard
-              icon={ChefHat}
-              title="Recipe Discovery"
-              description="Find healthy recipes that match your macros and dietary restrictions."
-            />
+
             <FeatureCard
               icon={Search}
               title="Supplement Research"
@@ -400,41 +471,50 @@ const Index = () => {
               onClick={() => navigate("/supplements")}
             />
             <FeatureCard
+              icon={Crosshair}
+              title="Restaurant Menu Sniper"
+              description="Upload a menu and let AI securely lock onto the 3 meals that best fit your remaining daily macros."
+              onClick={() => navigate("/menu-sniper")}
+            />
+            <FeatureCard
               icon={MapPin}
               title="Budget-Friendly Finder"
               description="Discover affordable, healthy meal options near you that fit your calorie budget."
+              onClick={() => navigate('/budget-finder')}
             />
           </div>
         </section>
 
-        {/* Insights Card */}
-        <section className="animate-slide-up" style={{ animationDelay: "0.5s" }}>
-          <Card className="gradient-hero text-primary-foreground overflow-hidden relative">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-primary-foreground/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="absolute bottom-0 left-0 w-32 h-32 bg-primary-foreground/5 rounded-full translate-y-1/2 -translate-x-1/2" />
-            <CardContent className="p-6 relative">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <section className="animate-slide-up mb-8" style={{ animationDelay: "0.5s" }}>
+          {crashPrediction && (
+            <Card className={`overflow-hidden relative flex flex-col h-full border-none text-white shadow-sm hover-lift ${crashPrediction.risk === 'high' ? 'bg-gradient-to-br from-red-500 to-rose-600' : 'bg-gradient-to-br from-emerald-500 to-teal-600'}`}>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+              <CardContent className="p-5 relative flex flex-col justify-between flex-1">
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5" />
-                    <span className="text-sm font-medium opacity-90">AI Insight</span>
+                  <div className="flex items-center justify-between mt-1 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-5 h-5 opacity-90" />
+                      <span className="text-sm font-medium opacity-90">Energy Forecaster</span>
+                    </div>
+                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-md tracking-wider bg-white/20`}>
+                      {crashPrediction.risk === 'high' ? 'High Risk' : 'Stable'}
+                    </span>
                   </div>
-                  <h3 className="text-xl font-bold">
-                    {goals.daily_protein - proteinConsumed > 0
-                      ? `You're ${goals.daily_protein - proteinConsumed}g short on protein today`
-                      : "Great job hitting your protein target today! 💪"}
+                  <h3 className="text-lg font-bold leading-tight">
+                    {crashPrediction.risk === 'high' ? 'Energy Crash Imminent' : 'Metabolism is Stable'}
                   </h3>
-                  <p className="text-sm opacity-80 max-w-md">
-                    Consider adding grilled chicken or Greek yogurt to your dinner to meet your muscle-building goals.
+                  <p className="text-sm opacity-90">
+                    {crashPrediction.message}
                   </p>
+                  {crashPrediction.risk === 'low' && (
+                    <p className="text-xs opacity-75 mt-2 font-medium">
+                      Expected drop in: ~{Math.floor(crashPrediction.minutes / 60)}h {crashPrediction.minutes % 60}m
+                    </p>
+                  )}
                 </div>
-                <Button variant="glass" className="flex-shrink-0 bg-primary-foreground/20 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/30">
-                  Get Suggestions
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </section>
       </main>
 
@@ -458,33 +538,148 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showReportModal} onOpenChange={setShowReportModal}>
+      <WeeklyReport isOpen={showReportModal} onOpenChange={setShowReportModal} goals={goals} />
+
+      {/* Tracking Edit Modal */}
+      <Dialog open={trackEdit.isOpen} onOpenChange={(open) => !open && setTrackEdit(prev => ({ ...prev, isOpen: false }))}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Monthly Tracking Report</DialogTitle>
+            <DialogTitle>Update {trackEdit.label}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center justify-center p-4">
-            <Calendar
-              mode="multiple"
-              selected={[...underConsumedDates, ...overConsumedDates]}
-              modifiers={{ under: underConsumedDates, over: overConsumedDates }}
-              modifiersClassNames={{
-                under: "bg-primary text-primary-foreground font-bold rounded-lg",
-                over: "bg-destructive text-destructive-foreground font-bold rounded-lg"
-              }}
-              className="rounded-md border p-3 pointer-events-none"
-            />
-            <div className="flex w-full justify-between items-center text-sm mt-6 px-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-primary" />
-                <span className="text-muted-foreground">Within Target</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-destructive" />
-                <span className="text-muted-foreground">Over Target</span>
-              </div>
+          <div className="grid gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <label htmlFor="tracking-value" className="text-sm font-medium text-foreground">
+                New Value
+              </label>
+              <Input
+                id="tracking-value"
+                type="number"
+                step="any"
+                value={trackEdit.value}
+                onChange={(e) => setTrackEdit(prev => ({ ...prev, value: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    submitTrackingEdit();
+                  }
+                }}
+                className="text-lg h-12"
+                autoFocus
+              />
             </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTrackEdit(prev => ({ ...prev, isOpen: false }))}>
+              Cancel
+            </Button>
+            <Button onClick={submitTrackingEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Meal Details Modal */}
+      <Dialog open={!!activeMealTitle} onOpenChange={(open) => !open && setActiveMealTitle(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{activeMealTitle} Details</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            {meals.find(m => m.title === activeMealTitle)?.items.map((item: TodayEntry, i: number) => (
+              <div key={i} className="flex justify-between items-center bg-secondary/30 p-3 rounded-lg border border-border/40 hover:bg-secondary/60 transition-colors group/item">
+                <div className="flex flex-col truncate pr-2">
+                  <span className="text-sm font-semibold text-foreground truncate">{item.name}</span>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                    <span className="flex items-center gap-1 text-accent"><Flame className="w-3 h-3"/> {item.calories}</span>
+                    <span className="flex items-center gap-1 text-protein"><Utensils className="w-3 h-3"/> {item.protein}g</span>
+                    <span className="flex items-center gap-1 text-primary"><Utensils className="w-3 h-3"/> {item.carbs}g</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => { setActiveMealTitle(null); setEditEntry(item); }}
+                    className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                    title="Edit Entry"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => handleDeleteEntry(item)}
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    title="Delete Entry"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {meals.find(m => m.title === activeMealTitle)?.items.length === 0 && (
+              <p className="text-center text-muted-foreground py-8">No items logged for this meal yet.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Entry Edit Modal */}
+      <Dialog open={!!editEntry} onOpenChange={(open) => !open && setEditEntry(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit {editEntry?.name}</DialogTitle>
+          </DialogHeader>
+          {editEntry && (
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                  <Flame className="w-4 h-4 text-accent" /> Calories
+                </label>
+                <Input
+                  type="number"
+                  value={editEntry.calories}
+                  onChange={(e) => setEditEntry({ ...editEntry, calories: Number(e.target.value) })}
+                  className="text-lg"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                  <Utensils className="w-4 h-4 text-protein" /> Protein (g)
+                </label>
+                <Input
+                  type="number"
+                  value={editEntry.protein}
+                  onChange={(e) => setEditEntry({ ...editEntry, protein: Number(e.target.value) })}
+                  className="text-lg"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                  <Utensils className="w-4 h-4 text-primary" /> Carbs (g)
+                </label>
+                <Input
+                  type="number"
+                  value={editEntry.carbs}
+                  onChange={(e) => setEditEntry({ ...editEntry, carbs: Number(e.target.value) })}
+                  className="text-lg"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                  <Utensils className="w-4 h-4 text-warning" /> Fat (g)
+                </label>
+                <Input
+                  type="number"
+                  value={editEntry.fat}
+                  onChange={(e) => setEditEntry({ ...editEntry, fat: Number(e.target.value) })}
+                  className="text-lg"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditEntry(null)}>Cancel</Button>
+            <Button onClick={submitEditEntry}>Save Macros</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

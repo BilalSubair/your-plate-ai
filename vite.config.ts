@@ -9,6 +9,26 @@ export default defineConfig(({ mode }) => ({
     host: true,
     port: 5173,
     allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      }
+    }
+  },
+  preview: {
+    host: true,
+    port: 4173,
+    allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      }
+    }
+  },
+  build: {
+    chunkSizeWarningLimit: 800,
   },
   plugins: [
     react(),
@@ -16,8 +36,8 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'placeholder.svg'],
       manifest: {
-        name: 'Your Plate AI',
-        short_name: 'YourPlate',
+        name: 'NutriGuide AI',
+        short_name: 'NutriGuide',
         description: 'AI-Powered Nutrition App',
         theme_color: '#ffffff',
         background_color: '#ffffff',

@@ -26,13 +26,34 @@ def decode_and_validate_image(image_base64: str) -> bytes:
         _, base64_data = image_base64.split(",", 1)
         image_bytes = base64.b64decode(base64_data)
         
-        # Validate size (< 1MB)
-        if len(image_bytes) > 1 * 1024 * 1024:
-            raise ValidationError("Image file too large. Please upload an image smaller than 1MB.")
+        # Validate size (< 10MB)
+        if len(image_bytes) > 10 * 1024 * 1024:
+            raise ValidationError("Image file too large. Please upload an image smaller than 10MB.")
             
         return image_bytes
     except Exception as e:
         raise ValidationError(f"Failed to decode image: {str(e)}")
+
+def resize_image_if_needed(image_bytes: bytes, max_size=(800, 800)) -> str:
+    """
+    Resizes the image to a reasonable size for AI vision and returns a base64 string.
+    This significantly reduces latency and OpenAI/Groq processing time.
+    """
+    import io
+    from PIL import Image
+    
+    img = Image.open(io.BytesIO(image_bytes))
+    
+    # Convert to RGB if necessary (Alpha channel can cause issues)
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+        
+    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+    
+    buffered = io.BytesIO()
+    img.save(buffered, format="JPEG", quality=85)
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return f"data:image/jpeg;base64,{img_str}"
 
 
 
@@ -63,7 +84,7 @@ def classify_with_groq(ingredients_text: str) -> dict:
 
     try:
         completion = groq_client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Here is the extracted label text:\n\n{ingredients_text}"}
@@ -85,3 +106,50 @@ def classify_with_groq(ingredients_text: str) -> dict:
         
     except Exception as e:
         raise Exception(f"Failed to analyze ingredients with Groq: {str(e)}")
+
+def analyze_plate_with_groq_vision(image_base64: str) -> dict:
+    """
+    Uses Groq Vision (Llama 3.2 11B) to detect food and estimate nutrition.
+    This is used as a fallback/alternative to OpenAI.
+    """
+    groq_client = get_groq_client()
+    if not groq_client:
+        raise ValidationError("Groq API Key move to .env or .env.local to enable fallback scanning.")
+
+    system_prompt = (
+        "You are an Elite Research Nutritionist and Visual Food Intelligence Expert. "
+        "Your task is to provide extremely precise and accurate nutritional analysis of the provided plate image. "
+        "Follow these rigorous guidelines:\n\n"
+        "1. **Identification**: Identify every distinct food item with scientific precision.\n"
+        "2. **Volumetric Estimation**: Estimate the volume of each item in milliliters, then convert to weight (grams) using known food density constants. "
+        "Reference official USDA and FSSAI (for Indian cuisine) nutritional databases for density and macro-ratios.\n"
+        "3. **Precision Check**: Ensure the sum of individual food macros matches the 'total_nutrition' object exactly.\n\n"
+        "Return ONLY a raw JSON object matching this schema EXACTLY: "
+        "{\"foods\": [{\"name\": \"Specific Name\", \"grams\": number, \"nutrition\": {\"calories\": number, \"protein\": number, \"fat\": number, \"carbs\": number}}], "
+        "\"total_nutrition\": {\"calories\": number, \"protein\": number, \"fat\": number, \"carbs\": number}}"
+    )
+
+    try:
+        # Llama 4 Scout (17B) is the current Groq standard for high-performance vision
+        completion = groq_client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": system_prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_base64}
+                        }
+                    ]
+                }
+            ],
+            temperature=0.1,
+            max_tokens=1024,
+            response_format={"type": "json_object"}
+        )
+        
+        return json.loads(completion.choices[0].message.content)
+    except Exception as e:
+        raise Exception(f"Groq Vision error: {str(e)}")

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import { Header } from "@/components/Header";
 import { Navigation } from "@/components/Navigation";
+import { LogoLoader } from "@/components/LogoLoader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HealthScoreRing } from "@/components/HealthScoreRing";
@@ -22,17 +23,17 @@ import {
   Camera,
   ScanLine,
   X,
-  Loader2,
   AlertCircle,
   ChevronLeft,
   Package,
   Sparkles,
   RefreshCw,
   Keyboard,
+  Image as ImageIcon
 } from "lucide-react";
 import { toast } from "sonner";
 
-type ScanState = "idle" | "scanning" | "loading" | "result" | "error" | "manual" | "ocr_extracting" | "ai_analyzing" | "ai_result";
+type ScanState = "idle" | "scanning" | "loading" | "result" | "error" | "manual" | "ocr_extracting" | "ai_analyzing" | "ai_result" | "choose_image_source" | "live_camera" | "ai_plate_result";
 
 const Scanner = () => {
   const navigate = useNavigate();
@@ -40,34 +41,39 @@ const Scanner = () => {
   const [product, setProduct] = useState<ProductData | null>(null);
   const [manualBarcode, setManualBarcode] = useState("");
   const [aiIngredients, setAiIngredients] = useState<IngredientInfo[]>([]);
+  const [aiHealthScore, setAiHealthScore] = useState<number | null>(null); 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const startScanner = async () => {
     setScanState("scanning");
 
-    try {
-      const html5Qrcode = new Html5Qrcode("scanner-container");
-      scannerRef.current = html5Qrcode;
+    setTimeout(async () => {
+      try {
+        const html5Qrcode = new Html5Qrcode("scanner-container");
+        scannerRef.current = html5Qrcode;
 
-      await html5Qrcode.start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 150 },
-          aspectRatio: 1,
-        },
-        async (decodedText) => {
-          await stopScanner();
-          await lookupProduct(decodedText);
-        },
-        undefined
-      );
-    } catch (err) {
-      console.error("Scanner error:", err);
-      setScanState("idle");
-      toast.error("Could not access camera. Please check permissions.");
-    }
+        await html5Qrcode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 150 },
+            aspectRatio: 1,
+          },
+          async (decodedText) => {
+            await stopScanner();
+            await lookupProduct(decodedText);
+          },
+          undefined
+        );
+      } catch (err) {
+        console.error("Scanner error:", err);
+        setScanState("idle");
+        toast.error("Could not access camera. Please check permissions.");
+      }
+    }, 100);
   };
 
   const stopScanner = async () => {
@@ -114,6 +120,7 @@ const Scanner = () => {
     setManualBarcode("");
     setScanState("idle");
     setAiIngredients([]);
+    setAiHealthScore(null);
   };
 
   const handleLabelOCR = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,20 +142,76 @@ const Scanner = () => {
       });
 
       const res = await foodApi.analyzeIngredients(base64Data);
-
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.error || "Failed to analyze ingredients");
       }
-
-      const ingredients = await res.json();
-      setAiIngredients(ingredients);
+      const data = await res.json();
+      setAiIngredients(data.ingredients || []);
+      setAiHealthScore(data.healthScore || null);
       setScanState("ai_result");
       toast.success("Analysis complete!");
 
     } catch (error: any) {
       console.error("OCR/AI Error:", error);
-      toast.error(error?.message || "Error analyzing label. Please try a clearer photo.");
+      toast.error(error?.message || "Error analyzing image. Please try a clearer photo.");
+      setScanState("idle");
+    }
+  };
+
+  const startLiveCamera = async () => {
+    setScanState("live_camera");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      streamRef.current = stream;
+    } catch (err) {
+      console.error("Camera access denied:", err);
+      toast.error("Could not access camera. Please allow permissions or use Gallery.");
+      setScanState("choose_image_source");
+    }
+  };
+
+  const stopLiveCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const captureSnapshot = async () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(videoRef.current, 0, 0);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+
+    stopLiveCamera();
+    setScanState("ocr_extracting");
+    toast.info("Extracting text and analyzing ingredients...");
+
+    try {
+      const { foodApi } = await import("@/lib/api");
+      const res = await foodApi.analyzeIngredients(dataUrl);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to analyze ingredients");
+      }
+      const data = await res.json();
+      setAiIngredients(data.ingredients || []);
+      setAiHealthScore(data.healthScore || null);
+      setScanState("ai_result");
+      toast.success("Analysis complete!");
+    } catch (error: any) {
+      console.error("OCR/AI Error:", error);
+      toast.error(error?.message || "Error analyzing image. Please try a clearer photo.");
       setScanState("idle");
     }
   };
@@ -156,6 +219,7 @@ const Scanner = () => {
   useEffect(() => {
     return () => {
       stopScanner();
+      stopLiveCamera();
     };
   }, []);
 
@@ -183,6 +247,25 @@ const Scanner = () => {
       <Header />
 
       <main className="container px-4 py-6 space-y-6">
+        {/* Hidden File Uploaders (Global to Component) */}
+        <input
+          id="label-camera-input"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleLabelOCR}
+          onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
+        />
+        <input
+          id="label-gallery-input"
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleLabelOCR}
+          onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
+        />
+
         {/* Back Button */}
         <button
           onClick={() => navigate("/")}
@@ -206,26 +289,22 @@ const Scanner = () => {
             </div>
 
             <div className="grid gap-3 max-w-md mx-auto">
+
               <Button
                 size="lg"
                 className="w-full animate-slide-up stagger-2 hover-glow group bg-accent text-accent-foreground"
                 style={{ animationFillMode: 'both' }}
-                onClick={() => document.getElementById('label-camera-input')?.click()}
+                onClick={() => {
+                  setScanState("choose_image_source");
+                }}
               >
                 <Camera className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-                Scan Ingredients Label (AI)
+                Scan Ingredients Label (OCR)
               </Button>
               <p className="text-xs text-center text-muted-foreground mb-2 mt-[-0.5rem] animate-slide-up stagger-2" style={{ animationFillMode: 'both' }}>
-                Tip: For best results, take a clear, close-up photo of <strong>only</strong> the ingredient list.
+                Tip: Take a clear, close-up photo of <strong>only</strong> the ingredient list.
               </p>
-              <input
-                id="label-camera-input"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleLabelOCR}
-                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-              />
+
               <Button
                 size="lg"
                 variant="outline"
@@ -275,6 +354,94 @@ const Scanner = () => {
                     <span className="text-sm text-muted-foreground group-hover:text-primary transition-colors">{demo.code}</span>
                   </button>
                 ))}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Choose Image Source State */}
+        {scanState === "choose_image_source" && (
+          <div className="space-y-6 animate-fade-in">
+            <Card variant="elevated" className="max-w-md mx-auto">
+              <CardHeader className="pb-3 text-center relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute left-4 top-4 hover:bg-secondary rounded-full"
+                  onClick={() => setScanState("idle")}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2">
+                  <Camera className="w-8 h-8 text-primary" />
+                </div>
+                <CardTitle className="text-xl">Upload Label Image</CardTitle>
+                <p className="text-muted-foreground text-sm mt-2">
+                  For best results, crop the photo around the ingredients list.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-2">
+                <Button
+                  size="lg"
+                  className="w-full h-16 text-lg hover-glow group bg-primary text-primary-foreground"
+                  onClick={startLiveCamera}
+                >
+                  <Camera className="w-6 h-6 mr-3 group-hover:scale-110 transition-transform" />
+                  Take Photo (Camera)
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full h-16 text-lg hover-lift group"
+                  onClick={() => document.getElementById('label-gallery-input')?.click()}
+                >
+                  <ImageIcon className="w-6 h-6 mr-3 group-hover:scale-110 transition-transform" />
+                  Upload from Gallery
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Live WebRTC Camera State */}
+        {scanState === "live_camera" && (
+          <div className="space-y-6 animate-fade-in">
+            <Card variant="elevated" className="max-w-md mx-auto overflow-hidden">
+              <div className="relative aspect-[3/4] bg-black">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <CardContent className="pt-6 pb-6 bg-card">
+                <p className="text-center text-muted-foreground text-sm mb-6">
+                  Position the ingredients list within the frame.
+                </p>
+                <div className="flex justify-center items-center gap-8">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-12 h-12 rounded-full hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => {
+                      stopLiveCamera();
+                      setScanState("choose_image_source");
+                    }}
+                  >
+                    <X className="w-6 h-6" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    className="w-20 h-20 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(235,100,52,0.4)] hover:scale-105 transition-transform border-4 border-background"
+                    onClick={captureSnapshot}
+                  >
+                    <div className="w-16 h-16 rounded-full border-2 border-primary-foreground/30 flex items-center justify-center">
+                      <Camera className="w-8 h-8" />
+                    </div>
+                  </Button>
+                  <div className="w-12" /> {/* Spacer for centering */}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -377,20 +544,8 @@ const Scanner = () => {
 
         {/* Loading State */}
         {scanState === "loading" && (
-          <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
-            <div className="relative">
-              <div className="w-20 h-20 rounded-full border-4 border-muted animate-pulse" />
-              <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Package className="w-8 h-8 text-primary animate-pulse" />
-              </div>
-            </div>
-            <p className="text-muted-foreground mt-6 animate-pulse">Looking up product...</p>
-            <div className="flex gap-1 mt-3">
-              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-            </div>
+          <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+            <LogoLoader size="lg" text="Uploading and analyzing image..." />
           </div>
         )}
 
@@ -647,15 +802,8 @@ const Scanner = () => {
 
         {/* AI Analyzing State */}
         {scanState === "ai_analyzing" && (
-          <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
-            <div className="relative">
-              <div className="w-20 h-20 rounded-full border-4 border-muted animate-pulse" />
-              <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Sparkles className="w-8 h-8 text-primary animate-pulse" />
-              </div>
-            </div>
-            <p className="text-muted-foreground mt-6 animate-pulse">Groq AI is analyzing ingredients...</p>
+          <div className="flex flex-col justify-center items-center py-12 mx-auto">
+            <LogoLoader size="lg" text="NutriGuide AI is analyzing..." />
           </div>
         )}
 
@@ -664,9 +812,20 @@ const Scanner = () => {
           <div className="space-y-6 animate-fade-in">
             <Card variant="elevated" className="animate-bounce-in overflow-hidden">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <Sparkles className="w-6 h-6 text-primary" />
-                  AI Ingredient Analysis
+                <CardTitle className="flex items-center justify-between text-xl">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-6 h-6 text-primary" />
+                    AI Ingredient Analysis
+                  </div>
+                  {aiHealthScore !== null && (
+                    <div className="flex items-center animate-fade-in">
+                      <HealthBadge
+                        level={aiHealthScore >= 8 ? "healthy" : aiHealthScore >= 4 ? "neutral" : "harmful"}
+                        label={`${aiHealthScore >= 8 ? "Healthy" : aiHealthScore >= 4 ? "Moderate" : "Harmful"} (${aiHealthScore}/10)`}
+                        size="md"
+                      />
+                    </div>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -675,7 +834,7 @@ const Scanner = () => {
                     <div key={index} className="animate-scale-in" style={{ animationDelay: `${0.1 + index * 0.05}s`, animationFillMode: 'both' }}>
                       <IngredientCard
                         name={ingredient.name}
-                        level={ingredient.healthImpact === "harmful" ? "high" : ingredient.healthImpact === "neutral" ? "moderate" : "low"}
+                        level={ingredient.healthImpact as "healthy" | "neutral" | "harmful"}
                         description={ingredient.reason}
                       />
                     </div>

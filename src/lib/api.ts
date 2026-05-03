@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 let accessToken: string | null = localStorage.getItem('access_token');
 let refreshToken: string | null = localStorage.getItem('refresh_token');
@@ -82,7 +82,18 @@ export const register = async (username: string, email: string, password: string
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email, password }),
   });
-  if (!res.ok) throw new Error('Registration failed');
+  if (!res.ok) {
+    const errText = await res.text();
+    try {
+      const errJson = JSON.parse(errText);
+      const firstKey = Object.keys(errJson)[0];
+      const firstError = Array.isArray(errJson[firstKey]) ? errJson[firstKey][0] : errJson[firstKey];
+      throw new Error(firstError || 'Registration failed');
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Registration failed') throw e;
+      throw new Error('Registration failed');
+    }
+  }
   return res.json();
 };
 
@@ -105,10 +116,31 @@ export const foodApi = {
     apiFetch('/food/favorites/', { method: 'POST', body: JSON.stringify(data) }),
   deleteFavorite: (id: number) =>
     apiFetch(`/food/favorites/${id}/`, { method: 'DELETE' }),
-  searchFatSecret: (query: string) =>
-    apiFetch(`/food/fatsecret/search/?q=${encodeURIComponent(query)}`),
+  searchFood: (query: string) =>
+    apiFetch(`/food/search/?q=${encodeURIComponent(query)}`),
+  searchRecipes: (query: string, filters: any = {}) => {
+    const params = new URLSearchParams({ q: query });
+    Object.entries(filters).forEach(([k, v]) => {
+      if (v) params.append(k, String(v));
+    });
+    return apiFetch(`/food/recipes/search/?${params.toString()}`);
+  },
+  getMealPlan: (data: any) =>
+    apiFetch('/food/meal-planner/', { method: 'POST', body: JSON.stringify(data) }),
   analyzeIngredients: (imageBase64: string) =>
     apiFetch('/food/analyze-ingredients/', { method: 'POST', body: JSON.stringify({ imageBase64 }) }),
+  analyzePlate: (imageBase64: string) =>
+    apiFetch('/food/analyze-plate/', { method: 'POST', body: JSON.stringify({ imageBase64 }) }),
+  quickNutritionLookup: (query: string) =>
+    apiFetch('/food/quick-nutrition-lookup/', { method: 'POST', body: JSON.stringify({ query }) }),
+  getBudgetMeals: (params: { budget: number, location: string, max_calories: number, min_protein: number, dietary_preferences: string }) =>
+    apiFetch("/food/budget-meals/", { method: "POST", body: JSON.stringify(params) }),
+  generateGroceryList: (data: Record<string, unknown>) =>
+    apiFetch('/food/grocery-optimizer/', { method: 'POST', body: JSON.stringify(data) }),
+  snipMenu: (imageBase64: string) =>
+    apiFetch('/food/menu-sniper/', { method: 'POST', body: JSON.stringify({ imageBase64 }) }),
+  aiCoach: (message: string, imageBase64?: string) =>
+    apiFetch('/food/ai-coach/', { method: 'POST', body: JSON.stringify({ message, imageBase64 }) }),
 };
 
 // Supplements API
@@ -126,10 +158,27 @@ export const goalsApi = {
   getGoals: () => apiFetch('/goals/nutrition/'),
   updateGoals: (data: Record<string, unknown>) =>
     apiFetch('/goals/nutrition/', { method: 'PUT', body: JSON.stringify(data) }),
+  patchGoals: (data: Record<string, unknown>) =>
+    apiFetch('/goals/nutrition/', { method: 'PATCH', body: JSON.stringify(data) }),
+  getCravingsBank: () => apiFetch('/goals/cravings_bank/'),
+  consumeCheatMeal: (data: { name: string, calories: number }) =>
+    apiFetch('/goals/cravings_bank/', { method: 'POST', body: JSON.stringify(data) }),
   getCravings: () => apiFetch('/goals/cravings/'),
   logCraving: (data: Record<string, unknown>) =>
     apiFetch('/goals/cravings/', { method: 'POST', body: JSON.stringify(data) }),
+  predictCrash: () => apiFetch('/goals/predict-crash/'),
   getDailyTracking: () => apiFetch('/goals/tracking/today/'),
   updateDailyTracking: (data: Record<string, unknown>) =>
     apiFetch('/goals/tracking/today/', { method: 'PATCH', body: JSON.stringify(data) }),
+  generateInsight: (data: Record<string, unknown>) =>
+    apiFetch('/goals/insight/generate/', { method: 'POST', body: JSON.stringify(data) }),
+  calculateMaintenance: () =>
+    apiFetch('/calculate-maintenance/', { method: 'POST' }),
+  getTrackingHistory: (days: number = 30) =>
+    apiFetch(`/goals/tracking/history/?days=${days}`),
+  generateMealPlan: (dietary_preferences: string) =>
+    apiFetch('/goals/plan/generate/', {
+      method: 'POST',
+      body: JSON.stringify({ dietary_preferences })
+    }),
 };

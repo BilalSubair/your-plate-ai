@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from apps.goals.views import CalculateMaintenanceView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -10,4 +11,5 @@ urlpatterns = [
     path('api/food/', include('apps.food.urls')),
     path('api/supplements/', include('apps.supplements.urls')),
     path('api/goals/', include('apps.goals.urls')),
+    path('api/calculate-maintenance/', CalculateMaintenanceView.as_view(), name='calculate-maintenance'),
 ]

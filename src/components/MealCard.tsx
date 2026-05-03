@@ -8,10 +8,11 @@ interface MealCardProps {
   time: string;
   calories: number;
   image?: string;
-  items?: string[];
+  items?: any[];
   logged?: boolean;
   className?: string;
   onLog?: () => void;
+  onClick?: () => void;
 }
 
 export const MealCard = ({
@@ -23,10 +24,12 @@ export const MealCard = ({
   logged = false,
   className,
   onLog,
+  onClick,
 }: MealCardProps) => {
   return (
     <Card 
       variant="elevated" 
+      onClick={onClick}
       className={cn(
         "overflow-hidden group cursor-pointer",
         logged && "ring-2 ring-primary/20",
@@ -79,7 +82,7 @@ export const MealCard = ({
                 size="icon" 
                 variant="icon"
                 className="h-8 w-8 flex-shrink-0"
-                onClick={onLog}
+                onClick={(e) => { e.stopPropagation(); onLog?.(); }}
               >
                 <Plus className="w-4 h-4" />
               </Button>
@@ -87,7 +90,7 @@ export const MealCard = ({
           </div>
           {items.length > 0 && (
             <p className="mt-2 text-xs text-muted-foreground line-clamp-1">
-              {items.join(" • ")}
+              {items.map(i => i.name || i).join(" • ")}
             </p>
           )}
         </div>

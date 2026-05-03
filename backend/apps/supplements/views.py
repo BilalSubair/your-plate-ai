@@ -6,7 +6,7 @@ from .serializers import SupplementSerializer, SupplementReviewSerializer
 
 
 class SupplementViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Supplement.objects.all()
+    queryset = Supplement.objects.prefetch_related('reviews').all()
     serializer_class = SupplementSerializer
     search_fields = ['name', 'category', 'description']
     filterset_fields = ['category', 'evidence_level']

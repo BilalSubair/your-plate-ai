@@ -7,7 +7,7 @@ interface CircularProgressProps {
   strokeWidth?: number;
   className?: string;
   children?: React.ReactNode;
-  variant?: "primary" | "accent" | "success";
+  variant?: "primary" | "accent" | "success" | "warning" | "destructive";
 }
 
 export const CircularProgress = ({
@@ -30,6 +30,8 @@ export const CircularProgress = ({
     primary: { start: "hsl(158, 64%, 42%)", end: "hsl(168, 70%, 48%)" },
     accent: { start: "hsl(16, 85%, 60%)", end: "hsl(26, 90%, 65%)" },
     success: { start: "hsl(142, 71%, 45%)", end: "hsl(152, 76%, 50%)" },
+    warning: { start: "hsl(38, 92%, 50%)", end: "hsl(48, 96%, 53%)" },
+    destructive: { start: "hsl(0, 84%, 60%)", end: "hsl(0, 72%, 51%)" },
   };
 
   return (

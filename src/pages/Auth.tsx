@@ -40,9 +40,17 @@ const Auth = () => {
         await register(username.trim(), email.trim(), password);
       }
       toast({ title: isLogin ? "Welcome back!" : "Account created!", description: "Redirecting..." });
-      navigate("/");
-    } catch {
-      toast({ title: "Error", description: isLogin ? "Invalid credentials" : "Registration failed. Try a different username.", variant: "destructive" });
+      navigate(isLogin ? "/" : "/onboarding");
+    } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : isLogin ? "Invalid credentials" : "Registration failed. Try a different username.";
+
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }

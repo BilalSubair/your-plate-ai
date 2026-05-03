@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Header } from "@/components/Header";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ChefHat,
   Search,
@@ -27,12 +36,13 @@ import {
   Loader2
 } from "lucide-react";
 import { toast } from "sonner";
-import { foodApi } from "@/lib/api";
+import { foodApi, goalsApi } from "@/lib/api";
 
 interface Recipe {
   id: string;
   name: string;
   image: string;
+  url?: string;
   calories: number;
   protein: number;
   carbs: number;
@@ -134,8 +144,72 @@ const calorieSwaps = [
     protein: 0,
     carbs: 0,
     fat: 0
-  },
+  }
 ];
+
+const RecipeCard = memo(({ recipe, index, onClick, onToggleFavorite }: { recipe: Recipe, index: number, onClick: (r: Recipe) => void, onToggleFavorite: (id: string) => void }) => {
+  return (
+    <Card
+      key={recipe.id}
+      className="overflow-hidden hover-lift animate-slide-up cursor-pointer"
+      style={{ animationDelay: `${index * 0.1}s` }}
+      onClick={() => onClick(recipe)}
+    >
+      <div className="relative">
+        <img
+          src={recipe.image}
+          alt={recipe.name}
+          className="w-full h-40 object-cover"
+          loading="lazy"
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm"
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(recipe.id); }}
+        >
+          <Heart className={`w-4 h-4 ${recipe.isFavorite ? 'fill-destructive text-destructive' : ''}`} />
+        </Button>
+        <Badge
+          className="absolute bottom-2 left-2"
+          variant={recipe.difficulty === 'Easy' ? 'default' : recipe.difficulty === 'Medium' ? 'secondary' : 'destructive'}
+        >
+          {recipe.difficulty}
+        </Badge>
+      </div>
+      <CardContent className="p-4">
+        <h3 className="font-semibold text-foreground mb-2">{recipe.name}</h3>
+
+        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+          <span className="flex items-center gap-1">
+            <Clock className="w-4 h-4" />
+            {recipe.time}
+          </span>
+          <span className="flex items-center gap-1">
+            <Flame className="w-4 h-4 text-accent" />
+            {recipe.calories} kcal
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs mb-3">
+          <span className="text-protein font-medium">P: {recipe.protein}g</span>
+          <span className="text-muted-foreground">•</span>
+          <span className="text-primary font-medium">C: {recipe.carbs}g</span>
+          <span className="text-muted-foreground">•</span>
+          <span className="text-warning font-medium">F: {recipe.fat}g</span>
+        </div>
+
+        <div className="flex flex-wrap gap-1">
+          {(recipe.tags || []).slice(0, 3).map((tag: string) => (
+            <Badge key={tag} variant="outline" className="text-xs">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
 
 const Recipes = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -145,23 +219,73 @@ const Recipes = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState("discover");
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [mealType, setMealType] = useState<string>("all-meals");
+  const [cuisineType, setCuisineType] = useState<string>("all-cuisines");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   const [swapQuery, setSwapQuery] = useState("");
   const [swaps, setSwaps] = useState<any[]>(calorieSwaps);
   const [isGeneratingSwaps, setIsGeneratingSwaps] = useState(false);
 
   const [isLogging, setIsLogging] = useState<string | null>(null);
+  const [isCheatMeal, setIsCheatMeal] = useState(false);
+  const [swapCheatMeals, setSwapCheatMeals] = useState<Record<string, boolean>>({});
 
-  const addIngredient = () => {
+  const addIngredient = useCallback(() => {
     if (newIngredient.trim() && !ingredients.includes(newIngredient.toLowerCase())) {
-      setIngredients([...ingredients, newIngredient.toLowerCase()]);
+      setIngredients(prev => [...prev, newIngredient.toLowerCase()]);
       setNewIngredient("");
+    }
+  }, [newIngredient, ingredients]);
+
+  const removeIngredient = useCallback((ingredient: string) => {
+    setIngredients(prev => prev.filter(i => i !== ingredient));
+  }, []);
+
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) {
+      setRecipes(sampleRecipes);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const res = await foodApi.searchRecipes(query, {
+        mealType: mealType !== "all-meals" ? mealType : undefined,
+        cuisineType: cuisineType !== "all-cuisines" ? cuisineType : undefined
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRecipes(data);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        toast.error(`Edamam Error: ${errData.error || res.statusText || res.status}`);
+      }
+    } catch (err: any) {
+      toast.error(`Technical error: ${err.message || "Connection failed"}`);
+    } finally {
+      setIsSearching(false);
     }
   };
 
-  const removeIngredient = (ingredient: string) => {
-    setIngredients(ingredients.filter(i => i !== ingredient));
-  };
+  // Debounce the raw search query input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Execute search when debounced query or filters change
+  useEffect(() => {
+    if (debouncedQuery) {
+      handleSearch(debouncedQuery);
+    } else if (searchQuery === "") {
+      setRecipes(sampleRecipes);
+    }
+  }, [debouncedQuery, mealType, cuisineType]);
 
   const generateRecipes = async () => {
     setIsGenerating(true);
@@ -231,22 +355,26 @@ const Recipes = () => {
     }
   };
 
-  const toggleFavorite = (id: string) => {
-    setRecipes(recipes.map(r =>
+  const toggleFavorite = useCallback((id: string) => {
+    setRecipes(prev => prev.map(r =>
       r.id === id ? { ...r, isFavorite: !r.isFavorite } : r
     ));
     const recipe = recipes.find(r => r.id === id);
     if (recipe) {
       toast(recipe.isFavorite ? "Removed from favorites" : "Added to favorites");
     }
-  };
+  }, [recipes]);
 
-  const filteredRecipes = recipes.filter(recipe =>
-    recipe.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    recipe.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredRecipes = useMemo(() => {
+    return (recipes || []).filter(recipe => {
+      if (!recipe) return false;
+      const nameMatch = (recipe.name || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const tagMatch = (recipe.tags || []).some(tag => (tag || "").toLowerCase().includes(searchQuery.toLowerCase()));
+      return nameMatch || tagMatch;
+    });
+  }, [recipes, searchQuery]);
 
-  const handleLogItem = async (type: 'swap' | 'recipe', name: string, calories: number, protein: number, carbs: number, fat: number) => {
+  const handleLogItem = async (type: 'swap' | 'recipe', name: string, calories: number, protein: number, carbs: number, fat: number, useCheatAllowance: boolean = false) => {
     setIsLogging(name);
     try {
       const res = await foodApi.logEntry({
@@ -258,7 +386,13 @@ const Recipes = () => {
         meal_type: type === 'recipe' ? "lunch" : "snack",
       });
       if (res.ok) {
-        toast.success(`Successfully logged ${name} to your dashboard!`);
+        if (useCheatAllowance) {
+          await goalsApi.consumeCheatMeal({ name, calories: calories || 0 });
+        }
+        toast.success(`Successfully logged ${name} to your dashboard!`, {
+          description: useCheatAllowance ? 'Deducted from Cravings Bank' : '',
+        });
+        if (type === 'recipe') setIsCheatMeal(false);
         if (type === 'recipe') {
           setSelectedRecipe(null);
         }
@@ -299,70 +433,74 @@ const Recipes = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-primary" />}
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+              <Select value={cuisineType} onValueChange={setCuisineType}>
+                <SelectTrigger className="w-[120px] h-8 text-xs shrink-0">
+                  <SelectValue placeholder="Cuisine" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all-cuisines">All Cuisines</SelectItem>
+                  <SelectItem value="american">American</SelectItem>
+                  <SelectItem value="asian">Asian</SelectItem>
+                  <SelectItem value="british">British</SelectItem>
+                  <SelectItem value="caribbean">Caribbean</SelectItem>
+                  <SelectItem value="central europe">Central Europe</SelectItem>
+                  <SelectItem value="chinese">Chinese</SelectItem>
+                  <SelectItem value="eastern europe">Eastern Europe</SelectItem>
+                  <SelectItem value="french">French</SelectItem>
+                  <SelectItem value="indian">Indian</SelectItem>
+                  <SelectItem value="italian">Italian</SelectItem>
+                  <SelectItem value="japanese">Japanese</SelectItem>
+                  <SelectItem value="kosher">Kosher</SelectItem>
+                  <SelectItem value="mediterranean">Mediterranean</SelectItem>
+                  <SelectItem value="mexican">Mexican</SelectItem>
+                  <SelectItem value="middle eastern">Middle Eastern</SelectItem>
+                  <SelectItem value="nordic">Nordic</SelectItem>
+                  <SelectItem value="south american">South American</SelectItem>
+                  <SelectItem value="south east asian">South East Asian</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={mealType} onValueChange={setMealType}>
+                <SelectTrigger className="w-[120px] h-8 text-xs shrink-0">
+                  <SelectValue placeholder="Meal Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all-meals">All Meals</SelectItem>
+                  <SelectItem value="breakfast">Breakfast</SelectItem>
+                  <SelectItem value="dinner">Dinner</SelectItem>
+                  <SelectItem value="lunch">Lunch</SelectItem>
+                  <SelectItem value="snack">Snack</SelectItem>
+                  <SelectItem value="teatime">Teatime</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {(cuisineType !== "all-cuisines" || mealType !== "all-meals") && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-2 text-xs text-muted-foreground"
+                  onClick={() => { setCuisineType("all-cuisines"); setMealType("all-meals"); }}
+                >
+                  <X className="w-3 h-3 mr-1" />
+                  Clear
+                </Button>
+              )}
             </div>
 
             {/* Recipe Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredRecipes.map((recipe, index) => (
-                <Card
+                <RecipeCard
                   key={recipe.id}
-                  variant="elevated"
-                  className="overflow-hidden hover-lift animate-slide-up cursor-pointer"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                  onClick={() => setSelectedRecipe(recipe)}
-                >
-                  <div className="relative">
-                    <img
-                      src={recipe.image}
-                      alt={recipe.name}
-                      className="w-full h-40 object-cover"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm"
-                      onClick={(e) => { e.stopPropagation(); toggleFavorite(recipe.id); }}
-                    >
-                      <Heart className={`w-4 h-4 ${recipe.isFavorite ? 'fill-destructive text-destructive' : ''}`} />
-                    </Button>
-                    <Badge
-                      className="absolute bottom-2 left-2"
-                      variant={recipe.difficulty === 'Easy' ? 'default' : recipe.difficulty === 'Medium' ? 'secondary' : 'destructive'}
-                    >
-                      {recipe.difficulty}
-                    </Badge>
-                  </div>
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold text-foreground mb-2">{recipe.name}</h3>
-
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {recipe.time}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Flame className="w-4 h-4 text-accent" />
-                        {recipe.calories} kcal
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-xs mb-3">
-                      <span className="text-protein font-medium">P: {recipe.protein}g</span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="text-primary font-medium">C: {recipe.carbs}g</span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="text-warning font-medium">F: {recipe.fat}g</span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1">
-                      {recipe.tags.slice(0, 3).map(tag => (
-                        <Badge key={tag} variant="outline" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                  recipe={recipe}
+                  index={index}
+                  onClick={setSelectedRecipe}
+                  onToggleFavorite={toggleFavorite}
+                />
               ))}
             </div>
           </TabsContent>
@@ -505,20 +643,32 @@ const Recipes = () => {
                           <p className="text-xs text-muted-foreground">Healthier</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Badge variant="secondary" className="bg-success/10 text-success">
-                          -{swap.saved} kcal
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-primary hover:text-primary hover:bg-primary/10"
-                          disabled={isLogging === swap.swap}
-                          onClick={() => handleLogItem('swap', swap.swap, swap.calories, swap.protein, swap.carbs, swap.fat)}
-                        >
-                          {isLogging === swap.swap ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-                          Log Swap
-                        </Button>
+                      <div className="flex flex-col gap-2 items-end">
+                        <div className="flex items-center gap-3">
+                          <Badge variant="secondary" className="bg-success/10 text-success">
+                            -{swap.saved} kcal
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-primary hover:text-primary hover:bg-primary/10"
+                            disabled={isLogging === swap.swap}
+                            onClick={() => handleLogItem('swap', swap.swap, swap.calories, swap.protein, swap.carbs, swap.fat, swapCheatMeals[swap.swap] || false)}
+                          >
+                            {isLogging === swap.swap ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                            Log Swap
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Label className="text-xs font-medium flex items-center gap-1 text-destructive">
+                            <Flame className="w-3 h-3 text-destructive" /> Cheat Meal
+                          </Label>
+                          <Switch 
+                            checked={swapCheatMeals[swap.swap] || false} 
+                            onCheckedChange={(checked) => setSwapCheatMeals(prev => ({...prev, [swap.swap]: checked}))} 
+                            className="scale-75" 
+                          />
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -584,32 +734,42 @@ const Recipes = () => {
                   </Badge>
                 </div>
 
-                {selectedRecipe.ingredientsList && selectedRecipe.ingredientsList.length > 0 && (
+                {(selectedRecipe.ingredientsList || []).length > 0 && (
                   <div className="space-y-2">
                     <h4 className="font-medium text-foreground border-b pb-1">Ingredients</h4>
                     <ul className="list-disc pl-5 space-y-1">
-                      {selectedRecipe.ingredientsList.map((ing, i) => (
+                      {(selectedRecipe.ingredientsList || []).map((ing, i) => (
                         <li key={i} className="text-sm text-muted-foreground">{ing}</li>
                       ))}
                     </ul>
                   </div>
                 )}
 
-                {selectedRecipe.instructions && selectedRecipe.instructions.length > 0 && (
+                {(selectedRecipe.instructions || []).length > 0 && (
                   <div className="space-y-2">
                     <h4 className="font-medium text-foreground border-b pb-1">Instructions</h4>
                     <ol className="list-decimal pl-5 space-y-2">
-                      {selectedRecipe.instructions.map((step, i) => (
+                      {(selectedRecipe.instructions || []).map((step, i) => (
                         <li key={i} className="text-sm text-foreground leading-relaxed">{step}</li>
                       ))}
                     </ol>
                   </div>
                 )}
 
+                <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg mt-4 border border-border/50">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium flex items-center gap-2 text-destructive">
+                      <Flame className="w-4 h-4" />
+                      Use Cheat Meal Allowance
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground">Deduct from Cravings Bank</p>
+                  </div>
+                  <Switch checked={isCheatMeal} onCheckedChange={setIsCheatMeal} />
+                </div>
                 <Button
-                  className="w-full mt-6 flex items-center gap-2"
+                  className="w-full mt-2 flex items-center gap-2"
                   disabled={isLogging === selectedRecipe.name}
-                  onClick={() => handleLogItem('recipe', selectedRecipe.name, selectedRecipe.calories, selectedRecipe.protein, selectedRecipe.carbs, selectedRecipe.fat)}
+                  onClick={() => handleLogItem('recipe', selectedRecipe.name, selectedRecipe.calories, selectedRecipe.protein, selectedRecipe.carbs, selectedRecipe.fat, isCheatMeal)}
                 >
                   {isLogging === selectedRecipe.name ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
                   Log to Dashboard

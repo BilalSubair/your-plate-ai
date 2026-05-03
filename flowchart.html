@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NutriGuide Flowchart</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+      min-height: 100vh;
+      background-color: #f8fafc;
+      margin: 0;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px -10px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 900px;
+      text-align: center;
+    }
+    h2 {
+      color: #334155;
+      margin-bottom: 24px;
+      font-weight: 600;
+    }
+    .mermaid {
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>NutriGuide AI: Data & System Flowchart</h2>
+    <div class="mermaid">
+      graph TD
+        classDef pres fill:#eff6ff,stroke:#3b82f6,stroke-width:2px,color:#1e3a8a
+        classDef app fill:#f0fdf4,stroke:#22c55e,stroke-width:2px,color:#14532d
+        classDef ai fill:#faf5ff,stroke:#a855f7,stroke-width:2px,color:#581c87
+        classDef db fill:#fef2f2,stroke:#ef4444,stroke-width:2px,color:#7f1d1d
+        classDef cloud fill:#fffbeb,stroke:#f59e0b,stroke-width:2px,color:#78350f
+
+        %% Client
+        subgraph Client ["Client Side (React + Vite + Tailwind + Shadcn)"]
+            direction LR
+            subgraph Pages ["React Router Components & Hooks"]
+                P_Auth["/login & /register (JWT Hooks)"]:::pres
+                P_Dash["/dashboard (React Query Async Stats)"]:::pres
+                P_Log["/log-meal (FatSecret DB Dropdowns)"]:::pres
+                P_Scan["/scanner (Base64 Camera Processing)"]:::pres
+                P_Goals["/goals (Smart Meal Planning Form)"]:::pres
+                P_Supp["/supplements (Supplement Database Viewer)"]:::pres
+            end
+        end
+
+        %% Backend
+        subgraph API ["Backend API (Django REST Framework)"]
+            direction TB
+            subgraph Apps ["Django Micro-Apps & Serializers"]
+                A_User["apps.users<br/>(JWT Security & Profiles)"]:::app
+                A_Food["apps.food<br/>(AI Logic, OCR, Groq Parsers)"]:::app
+                A_Goal["apps.goals<br/>(Macro Generation & Trackers)"]:::app
+                A_Supp["apps.supplements<br/>(Knowledge Base APIs)"]:::app
+            end
+        end
+
+        %% Edge AI
+        subgraph Edge ["Local Python Vision Pipeline (OpenCV)"]
+            direction TB
+            Paddle["PaddleOCR (en_PP-OCRv5)<br/>Extracts label character strings"]:::ai
+            YOLO["YOLOv8 Segmentation (yolov8n-seg.pt)<br/>Generates food masks & portions"]:::ai
+        end
+
+        %% Storage
+        subgraph Data ["Data Persistence (MySQL)"]
+            direction LR
+            T_User[("Models: CustomUser, UserProfile")]:::db
+            T_Food[("Models: FoodEntry, FavoriteFood")]:::db
+            T_Goal[("Models: NutritionGoal, DailyTracking")]:::db
+            T_Supp[("Models: Supplement, SupplementReview")]:::db
+        end
+
+        %% AI Cloud
+        subgraph Cloud ["External Cloud Web APIs"]
+            direction LR
+            Groq["Groq API (Llama-3-8B-Instant)<br/>Parses text and outputs formatted JSON"]:::cloud
+            FatSecret["FatSecret OAuth2 API<br/>REST Food Database Querying"]:::cloud
+        end
+
+        %% Links
+        Pages -->|Axios REST / JSON Tokens| Apps
+        
+        A_User <-->|Django ORM| T_User
+        A_Food <-->|Django ORM| T_Food
+        A_Goal <-->|Django ORM| T_Goal
+        A_Supp <-->|Django ORM| T_Supp
+
+        A_Food -->|POST imageBase64| YOLO
+        A_Food -->|POST imageBase64| Paddle
+        
+        A_Food -->|Pass OCR String Context| Groq
+        A_Goal -->|Pass User Macro Variables| Groq
+        
+        A_Food -->|Send Barcode & Name| FatSecret
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        fontFamily: 'arial',
+        fontSize: '16px',
+        primaryColor: '#ffffff',
+        edgeLabelBackground:'#ffffff',
+      }
+    });
+  </script>
+</body>
+</html>

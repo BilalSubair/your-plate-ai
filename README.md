@@ -1,6 +1,6 @@
-# Your Plate AI
+# NutriGuide AI
 
-Welcome to **Your Plate AI**, an intelligent full-stack nutrition tracking, smart receipt-scanning, and calorie calculation application. 
+Welcome to **NutriGuide AI**, an intelligent full-stack nutrition tracking, smart receipt-scanning, and calorie calculation application. 
 This service provides dynamic AI-assisted tools for building Indian diets, generating smart calorie substitutions, searching clinical supplement data, and tracking daily macros accurately.
 
 ## Key Features

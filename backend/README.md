@@ -1,4 +1,4 @@
-# YourPlate AI — Django Backend
+# NutriGuide AI — Django Backend
 
 ## Quick Start
 

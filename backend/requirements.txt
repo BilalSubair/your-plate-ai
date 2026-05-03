@@ -21,7 +21,7 @@ idna==3.11
 mysqlclient==2.2.8
 numpy==2.2.3
 opencv-python-headless==4.11.0.86
-paddleocr==2.9.1.1
+paddleocr>=2.9.1
 pillow==12.1.1
 proto-plus==1.27.1
 protobuf==6.33.5
@@ -39,3 +39,6 @@ sqlparse==0.5.5
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 urllib3==2.6.3
+scikit-learn==1.6.0
+pandas==2.2.3
+opencv-python-headless>=4.8.0

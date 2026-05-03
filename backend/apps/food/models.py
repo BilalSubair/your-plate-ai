@@ -29,6 +29,12 @@ class FoodEntry(models.Model):
     class Meta:
         ordering = ['-logged_at']
         verbose_name_plural = 'Food entries'
+        indexes = [
+            models.Index(fields=['user', '-logged_at']),
+            models.Index(fields=['user', 'meal_type']),
+            models.Index(fields=['name']),
+            models.Index(fields=['calories']),
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.calories}kcal ({self.user.username})"

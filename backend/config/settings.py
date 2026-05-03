@@ -5,14 +5,22 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / '.env', override=True)
+load_dotenv(BASE_DIR.parent / '.env.local')
 
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'change-me-in-production')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'change-me-in-production')  # Reloaded
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-FATSECRET_CLIENT_ID = os.environ.get('FATSECRET_CLIENT_ID')
-FATSECRET_CLIENT_SECRET = os.environ.get('FATSECRET_CLIENT_SECRET')
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
+EDAMAM_APP_ID = os.environ.get('EDAMAM_APP_ID')
+EDAMAM_APP_KEY = os.environ.get('EDAMAM_APP_KEY')
+EDAMAM_NUTRITION_APP_ID = os.environ.get('EDAMAM_NUTRITION_APP_ID')
+EDAMAM_NUTRITION_APP_KEY = os.environ.get('EDAMAM_NUTRITION_APP_KEY')
+EDAMAM_RECIPE_APP_ID = os.environ.get('EDAMAM_RECIPE_APP_ID')
+EDAMAM_RECIPE_APP_KEY = os.environ.get('EDAMAM_RECIPE_APP_KEY')
+EDAMAM_PLANNER_APP_ID = os.environ.get('EDAMAM_PLANNER_APP_ID')
+EDAMAM_PLANNER_APP_KEY = os.environ.get('EDAMAM_PLANNER_APP_KEY')
+EDAMAM_PLANNER_ACCOUNT_ID = os.environ.get('EDAMAM_PLANNER_ACCOUNT_ID')
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY') or os.environ.get('VITE_GROQ_API_KEY')
 
 ALLOWED_HOSTS = ['*']
 
@@ -73,6 +81,7 @@ DATABASES = {
         'PASSWORD': os.environ.get('DB_PASSWORD', ''),
         'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
         'PORT': os.environ.get('DB_PORT', '3306'),
+        'CONN_MAX_AGE': int(os.environ.get('CONN_MAX_AGE', 60)),
         'OPTIONS': {
             'charset': 'utf8mb4',
         },
